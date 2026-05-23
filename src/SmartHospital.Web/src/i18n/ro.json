@@ -224,5 +224,14 @@
     "statToday": "Astazi",
     "statUpcoming": "Viitoare",
     "bookNow": "Programeaza-te"
+  },
+  "budget": {
+    "Available": "Fonduri Disponibile",
+    "Limited": "Fonduri Limitate",
+    "Exhausted": "Fonduri Epuizate",
+    "used": "consumat",
+    "daysLeft": "zile ramase",
+    "exhaustedWarning": "Fondurile lunare sunt epuizate. Se accepta doar urgente. Programarile pot fi amanate.",
+    "fundStatus": "Stare Fonduri Publice"
   }
 }

@@ -224,5 +224,14 @@
     "statToday": "Today",
     "statUpcoming": "Upcoming",
     "bookNow": "Book Appointment"
+  },
+  "budget": {
+    "Available": "Funds Available",
+    "Limited": "Limited Funds",
+    "Exhausted": "Funds Exhausted",
+    "used": "used",
+    "daysLeft": "days remaining",
+    "exhaustedWarning": "Monthly funds exhausted. Only emergencies accepted. Scheduled appointments may be postponed.",
+    "fundStatus": "Public Fund Status"
   }
 }

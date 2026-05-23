@@ -16,6 +16,7 @@ public class AppDbContext : IdentityDbContext<HospitalManager>
     public DbSet<AbuseAlert> AbuseAlerts => Set<AbuseAlert>();
     public DbSet<Reservation> Reservations => Set<Reservation>();
     public DbSet<SlotConfiguration> SlotConfigurations => Set<SlotConfiguration>();
+    public DbSet<BudgetAllocation> BudgetAllocations => Set<BudgetAllocation>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -119,6 +120,22 @@ public class AppDbContext : IdentityDbContext<HospitalManager>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(s => new { s.DepartmentId, s.DayOfWeek });
+        });
+
+        builder.Entity<BudgetAllocation>(e =>
+        {
+            e.HasOne(b => b.Hospital)
+                .WithMany()
+                .HasForeignKey(b => b.HospitalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(b => b.Department)
+                .WithMany()
+                .HasForeignKey(b => b.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(b => new { b.HospitalId, b.Year, b.Month });
+            e.HasIndex(b => new { b.DepartmentId, b.Year, b.Month });
         });
     }
 }

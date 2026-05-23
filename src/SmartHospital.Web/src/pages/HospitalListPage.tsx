@@ -5,7 +5,7 @@ import {
   Box, Chip, Button, MenuItem, Select, FormControl, InputLabel,
   InputAdornment, Rating, Skeleton,
 } from '@mui/material';
-import { Search, Hotel, MedicalServices, Feedback } from '@mui/icons-material';
+import { Search, Hotel, MedicalServices, Feedback, Circle } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
@@ -25,6 +25,18 @@ interface Hospital {
   feedbackCount: number;
 }
 
+interface BudgetSummary {
+  hospitalId: number;
+  percentage: number;
+  status: string;
+}
+
+const budgetColors: Record<string, string> = {
+  Available: '#2e7d32',
+  Limited: '#ed6c02',
+  Exhausted: '#d32f2f',
+};
+
 const typeColors: Record<string, string> = {
   Emergency: '#d32f2f', General: '#1976d2', Specialized: '#7b1fa2',
   Pediatric: '#f57c00', Oncologic: '#c62828', Cardiac: '#ad1457',
@@ -35,10 +47,19 @@ const typeColors: Record<string, string> = {
 export default function HospitalListPage() {
   const { t, i18n } = useTranslation();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [budgetMap, setBudgetMap] = useState<Record<number, BudgetSummary>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [sortBy, setSortBy] = useState('name');
+
+  useEffect(() => {
+    api.get('/budget/summary').then(r => {
+      const map: Record<number, BudgetSummary> = {};
+      r.data.forEach((b: BudgetSummary) => { map[b.hospitalId] = b; });
+      setBudgetMap(map);
+    });
+  }, []);
 
   useEffect(() => {
     loadHospitals();
@@ -133,6 +154,15 @@ export default function HospitalListPage() {
                       <Rating value={hospital.averageRating / 1.0} max={4} size="small" readOnly precision={0.1} />
                     )}
                   </Box>
+                  {budgetMap[hospital.id] && (
+                    <Chip
+                      icon={<Circle sx={{ fontSize: 12, color: budgetColors[budgetMap[hospital.id].status] + ' !important' }} />}
+                      label={`${t(`budget.${budgetMap[hospital.id].status}`)} (${budgetMap[hospital.id].percentage}%)`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ mb: 1, borderColor: budgetColors[budgetMap[hospital.id].status] }}
+                    />
+                  )}
                   <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, mb: 1, lineHeight: 1.3 }}>
                     {getName(hospital)}
                   </Typography>

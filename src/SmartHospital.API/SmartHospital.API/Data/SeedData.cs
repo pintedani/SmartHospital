@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using SmartHospital.API.Models;
 
 namespace SmartHospital.API.Data;
@@ -40,6 +41,11 @@ public static class SeedData
         if (!context.SlotConfigurations.Any())
         {
             await SeedSlotConfigurationsAsync(context);
+        }
+
+        if (!context.BudgetAllocations.Any())
+        {
+            await SeedBudgetAllocationsAsync(context);
         }
     }
 
@@ -925,6 +931,62 @@ public static class SeedData
         }
 
         context.SlotConfigurations.AddRange(slots);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedBudgetAllocationsAsync(AppDbContext context)
+    {
+        var departments = context.Departments.Include(d => d.Hospital).ToList();
+        var rng = new Random(2026);
+        var now = DateTime.UtcNow;
+        var currentMonth = now.Month;
+        var currentYear = now.Year;
+        var dayOfMonth = now.Day;
+        var daysInMonth = DateTime.DaysInMonth(currentYear, currentMonth);
+
+        var allocations = new List<BudgetAllocation>();
+
+        foreach (var dept in departments)
+        {
+            // Base budget depends on department size (beds * tariff factor)
+            var baseBudget = dept.BedsCount * rng.Next(8000, 25000);
+            var totalBudget = (decimal)baseBudget;
+
+            // Simulate consumption: proportional to day of month + random variance
+            var expectedConsumption = (double)dayOfMonth / daysInMonth;
+            var variance = (rng.NextDouble() * 0.4) - 0.15; // -15% to +25% variance
+            var consumptionRatio = Math.Clamp(expectedConsumption + variance, 0.15, 0.99);
+            var consumed = totalBudget * (decimal)consumptionRatio;
+
+            // Max cases based on beds and turnover
+            var maxCases = dept.BedsCount * rng.Next(2, 5);
+            var usedCases = (int)(maxCases * consumptionRatio);
+
+            // Determine status
+            BudgetStatus status;
+            if (consumptionRatio >= 0.90)
+                status = BudgetStatus.Exhausted;
+            else if (consumptionRatio >= 0.70)
+                status = BudgetStatus.Limited;
+            else
+                status = BudgetStatus.Available;
+
+            allocations.Add(new BudgetAllocation
+            {
+                HospitalId = dept.HospitalId,
+                DepartmentId = dept.Id,
+                Year = currentYear,
+                Month = currentMonth,
+                TotalBudgetRON = Math.Round(totalBudget, 2),
+                ConsumedBudgetRON = Math.Round(consumed, 2),
+                MaxCases = maxCases,
+                UsedCases = usedCases,
+                Status = status,
+                LastUpdated = now.AddHours(-rng.Next(1, 48)),
+            });
+        }
+
+        context.BudgetAllocations.AddRange(allocations);
         await context.SaveChangesAsync();
     }
 }

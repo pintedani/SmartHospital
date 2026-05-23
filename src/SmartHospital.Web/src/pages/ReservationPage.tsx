@@ -3,10 +3,10 @@ import { useParams } from 'react-router-dom';
 import {
   Container, Typography, Stepper, Step, StepLabel, Box, TextField,
   Button, Card, CardContent, Alert, Chip, Grid, Paper,
-  CircularProgress, Divider,
+  CircularProgress, Divider, LinearProgress,
 } from '@mui/material';
 import {
-  CalendarMonth, AccessTime, CheckCircle, Person, Phone, Email,
+  CalendarMonth, AccessTime, CheckCircle, Person, Phone, Email, Circle,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -35,6 +35,25 @@ interface ReservationResult {
   departmentName: string;
 }
 
+interface DeptBudget {
+  departmentId: number;
+  departmentName: string;
+  departmentNameEN: string;
+  totalBudget: number;
+  consumed: number;
+  percentage: number;
+  maxCases: number;
+  usedCases: number;
+  status: string;
+  estimatedDaysLeft: number;
+}
+
+const budgetBarColor = (pct: number) => {
+  if (pct >= 90) return 'error' as const;
+  if (pct >= 70) return 'warning' as const;
+  return 'success' as const;
+};
+
 export default function ReservationPage() {
   const { hospitalId } = useParams<{ hospitalId: string }>();
   const { t, i18n } = useTranslation();
@@ -54,6 +73,7 @@ export default function ReservationPage() {
   const [result, setResult] = useState<ReservationResult | null>(null);
   const [error, setError] = useState('');
   const [hospitalName, setHospitalName] = useState('');
+  const [budgetData, setBudgetData] = useState<DeptBudget[]>([]);
 
   const steps = [
     t('reservation.stepDepartment'),
@@ -66,6 +86,7 @@ export default function ReservationPage() {
     if (hospitalId) {
       api.get(`/reservations/departments?hospitalId=${hospitalId}`).then(r => setDepartments(r.data));
       api.get(`/hospitals/${hospitalId}`).then(r => setHospitalName(i18n.language === 'en' ? (r.data.nameEN || r.data.name) : r.data.name));
+      api.get(`/budget/hospital/${hospitalId}`).then(r => setBudgetData(r.data.departments || []));
     }
   }, [hospitalId, i18n.language]);
 
@@ -199,6 +220,37 @@ export default function ReservationPage() {
                       {i18n.language === 'en' ? (dept.nameEN || dept.name) : dept.name}
                     </Typography>
                     <Chip label={dept.specialty} size="small" sx={{ mt: 1 }} />
+                    {(() => {
+                      const b = budgetData.find(bd => bd.departmentId === dept.id);
+                      if (!b) return null;
+                      return (
+                        <Box sx={{ mt: 1.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Circle sx={{ fontSize: 10, color: b.status === 'Exhausted' ? '#d32f2f' : b.status === 'Limited' ? '#ed6c02' : '#2e7d32' }} />
+                              <Typography variant="caption">{t(`budget.${b.status}`)}</Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              {b.percentage}% {t('budget.used')}
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min(b.percentage, 100)}
+                            color={budgetBarColor(b.percentage)}
+                            sx={{ height: 6, borderRadius: 3 }}
+                          />
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.3, display: 'block' }}>
+                            ~{b.estimatedDaysLeft} {t('budget.daysLeft')}
+                          </Typography>
+                          {b.status === 'Exhausted' && (
+                            <Alert severity="error" sx={{ mt: 1, py: 0, fontSize: '0.75rem' }}>
+                              {t('budget.exhaustedWarning')}
+                            </Alert>
+                          )}
+                        </Box>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               </Grid>
