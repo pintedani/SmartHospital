@@ -47,6 +47,16 @@ public static class SeedData
         {
             await SeedBudgetAllocationsAsync(context);
         }
+
+        // Seed AI settings defaults
+        if (!context.AppSettings.Any())
+        {
+            context.AppSettings.AddRange(
+                new AppSetting { Key = "AI:Enabled", Value = "true" },
+                new AppSetting { Key = "AI:Model", Value = "glm-5" }
+            );
+            await context.SaveChangesAsync();
+        }
     }
 
     private static List<Hospital> GetHospitals()

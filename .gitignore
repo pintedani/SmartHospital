@@ -3,6 +3,10 @@ obj/
 node_modules/
 dist/
 *.db
+*.db-shm
+*.db-wal
 *.user
 .vs/
 *.suo
+appsettings.Local.json
+**/appsettings.Local.json

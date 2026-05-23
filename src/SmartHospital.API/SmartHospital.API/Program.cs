@@ -8,10 +8,14 @@ using SmartHospital.API.Data;
 using SmartHospital.API.Hubs;
 using SmartHospital.API.Models;
 using SmartHospital.API.Services;
+using SmartHospital.API.Services.AI;
 
 QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load local secrets (not in source control)
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // SQLite
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -67,8 +71,10 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<PdfReportService>();
-// Recommendation engine - swap implementation here to switch to LLM-based
-builder.Services.AddScoped<IRecommendationService, RuleBasedRecommendationService>();
+// AI module
+builder.Services.AddHttpClient<IAiService, AnthropicAiService>();
+builder.Services.AddScoped<RuleBasedRecommendationService>();
+builder.Services.AddScoped<IRecommendationService, AiRecommendationService>();
 builder.Services.AddSignalR();
 
 builder.Services.AddCors(options =>

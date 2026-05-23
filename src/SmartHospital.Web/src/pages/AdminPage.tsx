@@ -4,8 +4,9 @@ import {
   Select, MenuItem, FormControl, InputLabel, Dialog, DialogTitle,
   DialogContent, DialogActions, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, IconButton, Chip,
+  Card, CardContent, Switch, FormControlLabel, Alert,
 } from '@mui/material';
-import { Add, Edit } from '@mui/icons-material';
+import { Add, Edit, AutoAwesome } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
@@ -19,7 +20,7 @@ const hospitalTypes = ['General', 'Emergency', 'Specialized', 'Pediatric', 'Onco
   'Cardiac', 'Rehabilitation', 'Pneumology', 'Infectious', 'Psychiatry', 'Municipal', 'University', 'Military'];
 
 export default function AdminPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -30,10 +31,42 @@ export default function AdminPage() {
     description: '', descriptionEN: '', yearFounded: 2000,
   });
 
-  useEffect(() => { loadHospitals(); }, []);
+  // AI Settings state
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiModel, setAiModel] = useState('');
+  const [aiHasKey, setAiHasKey] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+
+  useEffect(() => { loadHospitals(); loadAiSettings(); }, []);
 
   const loadHospitals = () => {
     api.get('/hospitals').then(res => setHospitals(res.data));
+  };
+
+  const loadAiSettings = () => {
+    api.get('/ai/settings').then(res => {
+      setAiEnabled(res.data.enabled === 'true' || res.data.enabled === true);
+      setAiModel(res.data.model || '');
+      setAiHasKey(res.data.hasApiKey || false);
+    }).catch(() => {});
+  };
+
+  const toggleAi = async (enabled: boolean) => {
+    setAiEnabled(enabled);
+    await api.put('/ai/settings', { enabled, model: aiModel || undefined });
+  };
+
+  const testAiConnection = async () => {
+    setAiTestLoading(true);
+    setAiTestResult(null);
+    try {
+      const res = await api.post('/ai/test');
+      setAiTestResult({ success: res.data.success, message: res.data.success ? 'Connection OK' : res.data.error });
+    } catch (err: any) {
+      setAiTestResult({ success: false, message: err.message || 'Connection failed' });
+    }
+    setAiTestLoading(false);
   };
 
   const openAdd = () => {
@@ -68,8 +101,66 @@ export default function AdminPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4">{t('admin.title')}</Typography>
+      <Typography variant="h4" sx={{ mb: 4 }}>{t('admin.title')}</Typography>
+
+      {/* AI Settings */}
+      <Card sx={{ mb: 4, border: '1px solid', borderColor: aiEnabled ? 'primary.light' : 'divider' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <AutoAwesome sx={{ color: '#7c3aed' }} />
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              {t('admin.aiSettings')}
+            </Typography>
+            <Chip
+              size="small"
+              label={aiEnabled ? (i18n.language === 'ro' ? 'ACTIV' : 'ACTIVE') : (i18n.language === 'ro' ? 'INACTIV' : 'INACTIVE')}
+              color={aiEnabled ? 'success' : 'default'}
+              sx={{ ml: 'auto' }}
+            />
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={<Switch checked={aiEnabled} onChange={(_, v) => toggleAi(v)} color="primary" />}
+              label={i18n.language === 'ro' ? 'Activează AI pentru verificarea simptomelor' : 'Enable AI for symptom checking'}
+            />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">Model:</Typography>
+              <Chip size="small" label={aiModel || 'N/A'} variant="outlined" />
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">API Key:</Typography>
+              <Chip
+                size="small"
+                label={aiHasKey ? '••••••••' : (i18n.language === 'ro' ? 'Nesetat' : 'Not set')}
+                color={aiHasKey ? 'success' : 'error'}
+                variant="outlined"
+              />
+            </Box>
+
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={testAiConnection}
+              disabled={aiTestLoading}
+            >
+              {aiTestLoading ? '...' : (i18n.language === 'ro' ? 'Testează Conexiunea' : 'Test Connection')}
+            </Button>
+          </Box>
+
+          {aiTestResult && (
+            <Alert severity={aiTestResult.success ? 'success' : 'error'} sx={{ mt: 2 }}>
+              {aiTestResult.message}
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Hospitals Table */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h5">{i18n.language === 'ro' ? 'Spitale' : 'Hospitals'}</Typography>
         <Button variant="contained" startIcon={<Add />} onClick={openAdd}>
           {t('admin.addHospital')}
         </Button>

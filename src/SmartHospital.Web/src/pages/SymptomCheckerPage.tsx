@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Container, Typography, Box, Button, Chip, Card, CardContent,
   Grid, Alert, CircularProgress, Divider, Link as MuiLink, TextField, InputAdornment,
 } from '@mui/material';
 import {
   LocalHospital, Warning, Phone, Language, LocationOn,
-  Star, ArrowForward, MyLocation, Search,
+  Star, ArrowForward, MyLocation, Search, AutoAwesome,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import AiBadge from '../components/AiBadge';
 
 interface SymptomItem { id: string; nameEN: string; nameRO: string; }
 interface SymptomCategory { category: string; categoryRO: string; symptoms: SymptomItem[]; }
@@ -24,6 +25,9 @@ interface HospitalRec {
 interface RecommendationResult {
   urgency: number; urgencyMessage: string;
   matchedSpecialties: string[]; hospitals: HospitalRec[];
+  aiExplanation?: string; aiExplanationRO?: string;
+  isAiGenerated?: boolean;
+  followUpQuestions?: string[]; followUpQuestionsRO?: string[];
 }
 
 export default function SymptomCheckerPage() {
@@ -36,8 +40,15 @@ export default function SymptomCheckerPage() {
   const [loadingSymptoms, setLoadingSymptoms] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [freeText, setFreeText] = useState('');
+  const [aiEnabled, setAiEnabled] = useState(false);
 
   const isRO = i18n.language === 'ro';
+
+  // Check AI status
+  useEffect(() => {
+    api.get('/ai/status').then(res => setAiEnabled(res.data.enabled)).catch(() => {});
+  }, []);
 
   // Load symptoms on first render
   useState(() => {
@@ -65,22 +76,26 @@ export default function SymptomCheckerPage() {
   };
 
   const getRecommendations = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0 && !freeText.trim()) return;
     setLoading(true);
     setResult(null);
     try {
-      // Convert IDs back to symptom names (replace _ with space)
       const symptoms = Array.from(selected).map(id => id.replace(/_/g, ' '));
       const res = await api.post('/recommendations', {
         symptoms,
         latitude: userLocation?.lat,
         longitude: userLocation?.lng,
+        freeText: freeText.trim() || undefined,
       });
       setResult(res.data);
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
+  };
+
+  const handleFollowUp = (question: string) => {
+    setFreeText(prev => prev ? `${prev}. ${question}` : question);
   };
 
   const getUrgencyColor = (urgency: number) => {
@@ -131,6 +146,37 @@ export default function SymptomCheckerPage() {
             : t('symptoms.useLocation')}
         </Button>
       </Box>
+
+      {/* AI Free-text input (only visible when AI is enabled) */}
+      {aiEnabled && (
+        <Card sx={{ mb: 3, border: '1px solid', borderColor: 'primary.light', background: 'linear-gradient(135deg, rgba(124,58,237,0.03) 0%, rgba(37,99,235,0.03) 100%)' }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <AutoAwesome sx={{ color: '#7c3aed', fontSize: 20 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                {isRO ? 'Descrieți simptomele cu propriile cuvinte' : 'Describe your symptoms in your own words'}
+              </Typography>
+              <AiBadge />
+            </Box>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              value={freeText}
+              onChange={e => setFreeText(e.target.value)}
+              placeholder={isRO
+                ? 'Ex: Am dureri de cap de 3 zile, amțeala și vederea încetoșată...'
+                : 'Ex: I have had headaches for 3 days, dizziness and blurred vision...'}
+              sx={{ '& .MuiInputBase-root': { borderRadius: 2 } }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {isRO
+                ? 'AI-ul va analiza descrierea și va identifica specialitățile potrivite. Nu includeți date personale (CNP, telefon, email).'
+                : 'AI will analyze your description and identify relevant specialties. Do not include personal data (ID, phone, email).'}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search box */}
       <TextField
@@ -190,12 +236,12 @@ export default function SymptomCheckerPage() {
         <Button
           variant="contained"
           size="large"
-          disabled={selected.size === 0 || loading}
+          disabled={(selected.size === 0 && !freeText.trim()) || loading}
           onClick={getRecommendations}
-          startIcon={loading ? <CircularProgress size={20} /> : <ArrowForward />}
+          startIcon={loading ? <CircularProgress size={20} /> : (aiEnabled && freeText.trim() ? <AutoAwesome /> : <ArrowForward />)}
           sx={{ px: 5, py: 1.5 }}
         >
-          {t('symptoms.getRecommendations')} ({selected.size})
+          {t('symptoms.getRecommendations')} {selected.size > 0 && `(${selected.size})`}
         </Button>
       </Box>
 
@@ -206,11 +252,53 @@ export default function SymptomCheckerPage() {
 
           {/* Urgency banner */}
           <Alert severity={getUrgencyColor(result.urgency) as any} sx={{ mb: 3 }} icon={<Warning />}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              {getUrgencyLabel(result.urgency)}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {getUrgencyLabel(result.urgency)}
+              </Typography>
+              {result.isAiGenerated && <AiBadge />}
+            </Box>
             <Typography variant="body2">{result.urgencyMessage}</Typography>
           </Alert>
+
+          {/* AI Explanation card */}
+          {result.isAiGenerated && result.aiExplanation && (
+            <Card sx={{ mb: 3, border: '1px solid', borderColor: 'primary.light', background: 'linear-gradient(135deg, rgba(124,58,237,0.04) 0%, rgba(37,99,235,0.04) 100%)' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <AutoAwesome sx={{ color: '#7c3aed', fontSize: 18 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#7c3aed' }}>
+                    {isRO ? 'Analiză AI' : 'AI Analysis'}
+                  </Typography>
+                  <AiBadge />
+                </Box>
+                <Typography variant="body2">
+                  {isRO ? (result.aiExplanationRO || result.aiExplanation) : result.aiExplanation}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Follow-up questions */}
+          {result.isAiGenerated && result.followUpQuestions && result.followUpQuestions.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                {isRO ? 'Întrebaţi suplimentare pentru o recomandare mai precisă:' : 'Follow-up questions for a more precise recommendation:'}
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {(isRO ? (result.followUpQuestionsRO || result.followUpQuestions) : result.followUpQuestions).map((q, i) => (
+                  <Chip
+                    key={i}
+                    label={q}
+                    onClick={() => handleFollowUp(q)}
+                    variant="outlined"
+                    color="primary"
+                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'primary.50' } }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
 
           {/* Matched specialties */}
           <Box sx={{ mb: 3 }}>

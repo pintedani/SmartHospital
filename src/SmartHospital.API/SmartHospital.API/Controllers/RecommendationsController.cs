@@ -20,10 +20,11 @@ public class RecommendationsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<RecommendationResult>> GetRecommendations([FromBody] RecommendationRequestDto dto)
     {
-        if (dto.Symptoms == null || dto.Symptoms.Count == 0)
-            return BadRequest("At least one symptom is required.");
+        if ((dto.Symptoms == null || dto.Symptoms.Count == 0) && string.IsNullOrWhiteSpace(dto.FreeText))
+            return BadRequest("At least one symptom or a text description is required.");
 
-        var request = new RecommendationRequest(dto.Symptoms, dto.Latitude, dto.Longitude);
+        var symptoms = dto.Symptoms ?? new List<string>();
+        var request = new RecommendationRequest(symptoms, dto.Latitude, dto.Longitude, dto.FreeText);
         var result = await _service.GetRecommendationsAsync(request);
         return Ok(result);
     }
@@ -37,7 +38,7 @@ public class RecommendationsController : ControllerBase
         return Ok(AvailableSymptoms);
     }
 
-    public record RecommendationRequestDto(List<string> Symptoms, double? Latitude = null, double? Longitude = null);
+    public record RecommendationRequestDto(List<string> Symptoms, double? Latitude = null, double? Longitude = null, string? FreeText = null);
 
     public record SymptomCategoryDto(string Category, string CategoryRO, List<SymptomItemDto> Symptoms);
     public record SymptomItemDto(string Id, string NameEN, string NameRO);

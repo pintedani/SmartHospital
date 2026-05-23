@@ -138,7 +138,11 @@
     "doctors": "Medici",
     "nurses": "Asistente",
     "latitude": "Latitudine",
-    "longitude": "Longitudine"
+    "longitude": "Longitudine",
+    "aiSettings": "Setari AI"
+  },
+  "ai": {
+    "tooltip": "Acest rezultat a fost generat cu AI"
   },
   "common": {
     "loading": "Se incarca...",

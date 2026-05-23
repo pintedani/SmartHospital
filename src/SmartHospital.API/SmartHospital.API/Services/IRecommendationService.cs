@@ -14,14 +14,20 @@ public interface IRecommendationService
 public record RecommendationRequest(
     List<string> Symptoms,
     double? Latitude = null,
-    double? Longitude = null
+    double? Longitude = null,
+    string? FreeText = null
 );
 
 public record RecommendationResult(
     UrgencyLevel Urgency,
     string UrgencyMessage,
     List<DepartmentSpecialty> MatchedSpecialties,
-    List<HospitalRecommendation> Hospitals
+    List<HospitalRecommendation> Hospitals,
+    string? AiExplanation = null,
+    string? AiExplanationRO = null,
+    bool IsAiGenerated = false,
+    List<string>? FollowUpQuestions = null,
+    List<string>? FollowUpQuestionsRO = null
 );
 
 public record HospitalRecommendation(

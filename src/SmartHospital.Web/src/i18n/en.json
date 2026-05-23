@@ -138,7 +138,11 @@
     "doctors": "Doctors",
     "nurses": "Nurses",
     "latitude": "Latitude",
-    "longitude": "Longitude"
+    "longitude": "Longitude",
+    "aiSettings": "AI Settings"
+  },
+  "ai": {
+    "tooltip": "This result was generated with AI"
   },
   "common": {
     "loading": "Loading...",
