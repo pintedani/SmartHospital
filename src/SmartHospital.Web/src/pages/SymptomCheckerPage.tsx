@@ -311,6 +311,14 @@ export default function SymptomCheckerPage() {
                       <Button
                         size="small"
                         variant="contained"
+                        color="success"
+                        onClick={() => navigate(`/reservation/${hospital.id}`)}
+                      >
+                        {t('reservation.bookNow')}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
                         onClick={() => navigate(`/feedback/${hospital.id}`)}
                       >
                         {t('symptoms.giveFeedback')}

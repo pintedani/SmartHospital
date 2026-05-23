@@ -88,7 +88,8 @@
     "relative": "Relative/Family",
     "caregiver": "Caregiver",
     "assistedMode": "Assisted Mode",
-    "assistedModeDesc": "Larger text and simplified interface",
+    "assistedModeDesc": "One question at a time, voice input, audio narration",
+    "listenQuestion": "Listen to question",
     "required": "Required"
   },
   "dashboard": {

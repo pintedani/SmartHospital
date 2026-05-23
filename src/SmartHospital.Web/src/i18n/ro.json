@@ -88,7 +88,8 @@
     "relative": "Apartinator/Familie",
     "caregiver": "Ingrijitor",
     "assistedMode": "Mod Asistat",
-    "assistedModeDesc": "Text mai mare si interfata simplificata",
+    "assistedModeDesc": "O întrebare pe ecran, dictare vocală, citire audio",
+    "listenQuestion": "Ascultă întrebarea",
     "required": "Obligatoriu"
   },
   "dashboard": {

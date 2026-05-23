@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   Container, Typography, Box, Button, Stepper, Step, StepLabel,
   Card, CardContent, ToggleButtonGroup, ToggleButton, TextField,
   MenuItem, Select, FormControl, InputLabel, Alert, Grow, Switch,
-  FormControlLabel,
+  FormControlLabel, IconButton, LinearProgress, Tooltip,
 } from '@mui/material';
-import { SentimentVeryDissatisfied, SentimentDissatisfied, SentimentSatisfied, SentimentVerySatisfied, CheckCircle } from '@mui/icons-material';
+import { SentimentVeryDissatisfied, SentimentDissatisfied, SentimentSatisfied, SentimentVerySatisfied, CheckCircle, Mic, MicOff, VolumeUp, NavigateNext, NavigateBefore } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
@@ -39,6 +39,69 @@ export default function FeedbackFormPage() {
   const [filledBy, setFilledBy] = useState<string>('Patient');
   const [answers, setAnswers] = useState<Record<number, { ratingValue?: number; textValue?: string; selectedOption?: string }>>({});
 
+  // Assisted mode: one-question-at-a-time index
+  const [assistedQIdx, setAssistedQIdx] = useState(0);
+  // Voice input state
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  // TTS state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // Web Speech API - Voice Recognition
+  const startListening = (questionId: number) => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = i18n.language === 'ro' ? 'ro-RO' : 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setAnswer(questionId, { textValue: transcript });
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsListening(true);
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  // Text-to-Speech
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = i18n.language === 'ro' ? 'ro-RO' : 'en-US';
+    utterance.rate = 0.85;
+    utterance.onend = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Auto-speak question in assisted mode
+  useEffect(() => {
+    if (assistedMode && activeStep > 0 && currentQuestions.length > 0) {
+      const q = currentQuestions[assistedQIdx];
+      if (q) {
+        const text = i18n.language === 'en' ? q.textEN : q.textRO;
+        setTimeout(() => speakText(text), 400);
+      }
+    }
+    return () => { window.speechSynthesis?.cancel(); };
+  }, [assistedQIdx, activeStep, assistedMode]);
+
+  // Reset assisted question index on step change
+  useEffect(() => { setAssistedQIdx(0); }, [activeStep]);
   useEffect(() => {
     if (hospitalId) {
       api.get(`/feedback/questionnaire/${hospitalId}`).then(res => {
@@ -164,15 +227,42 @@ export default function FeedbackFormPage() {
           {/* Question Steps */}
           {activeStep > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {currentQuestions.map(q => {
+              {/* Assisted mode: one question at a time with progress */}
+              {assistedMode && currentQuestions.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={((assistedQIdx + 1) / currentQuestions.length) * 100}
+                    sx={{ height: 8, borderRadius: 4, mb: 1 }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', display: 'block' }}>
+                    {assistedQIdx + 1} / {currentQuestions.length}
+                  </Typography>
+                </Box>
+              )}
+
+              {(assistedMode ? [currentQuestions[assistedQIdx]].filter(Boolean) : currentQuestions).map(q => {
                 const text = i18n.language === 'en' ? q.textEN : q.textRO;
                 const options = q.optionsJson ? JSON.parse(q.optionsJson) as string[] : [];
 
                 return (
                   <Box key={q.id}>
-                    <Typography sx={{ fontSize, fontWeight: 500, mb: 2 }}>
-                      {text} {q.isRequired && <span style={{ color: 'red' }}>*</span>}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Typography sx={{ fontSize: assistedMode ? '1.5rem' : fontSize, fontWeight: 500, flexGrow: 1 }}>
+                        {text} {q.isRequired && <span style={{ color: 'red' }}>*</span>}
+                      </Typography>
+                      {assistedMode && (
+                        <Tooltip title={t('feedback.listenQuestion')}>
+                          <IconButton
+                            onClick={() => speakText(text)}
+                            color={isSpeaking ? 'primary' : 'default'}
+                            sx={{ bgcolor: 'action.hover' }}
+                          >
+                            <VolumeUp />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
 
                     {q.isCorruptionAlert && (
                       <Alert severity="warning" sx={{ mb: 2 }}>
@@ -183,20 +273,28 @@ export default function FeedbackFormPage() {
                     )}
 
                     {q.type === 'Smiley' && (
-                      <Box sx={{ display: 'flex', gap: assistedMode ? 3 : 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', gap: assistedMode ? 4 : 2, justifyContent: 'center', flexWrap: 'wrap' }}>
                         {[
-                          { icon: <SentimentVerySatisfied />, label: options[0] || t('common.verySatisfied'), value: 4 },
-                          { icon: <SentimentSatisfied />, label: options[1] || t('common.satisfied'), value: 3 },
-                          { icon: <SentimentDissatisfied />, label: options[2] || t('common.dissatisfied'), value: 2 },
-                          { icon: <SentimentVeryDissatisfied />, label: options[3] || t('common.veryDissatisfied'), value: 1 },
+                          { icon: <SentimentVerySatisfied sx={{ fontSize: assistedMode ? 64 : 30 }} />, label: options[0] || t('common.verySatisfied'), value: 4, color: '#2e7d32' },
+                          { icon: <SentimentSatisfied sx={{ fontSize: assistedMode ? 64 : 30 }} />, label: options[1] || t('common.satisfied'), value: 3, color: '#1976d2' },
+                          { icon: <SentimentDissatisfied sx={{ fontSize: assistedMode ? 64 : 30 }} />, label: options[2] || t('common.dissatisfied'), value: 2, color: '#ed6c02' },
+                          { icon: <SentimentVeryDissatisfied sx={{ fontSize: assistedMode ? 64 : 30 }} />, label: options[3] || t('common.veryDissatisfied'), value: 1, color: '#d32f2f' },
                         ].map(opt => (
                           <Button key={opt.value}
                             variant={answers[q.id]?.ratingValue === opt.value ? 'contained' : 'outlined'}
                             onClick={() => setAnswer(q.id, { ratingValue: opt.value, selectedOption: opt.label })}
-                            sx={{ flexDirection: 'column', py: 2, px: 3, minWidth: assistedMode ? 120 : 90,
-                              fontSize: assistedMode ? 40 : 30 }}>
+                            sx={{
+                              flexDirection: 'column', py: assistedMode ? 3 : 2, px: assistedMode ? 4 : 3,
+                              minWidth: assistedMode ? 140 : 90, minHeight: assistedMode ? 140 : 'auto',
+                              borderRadius: assistedMode ? 4 : 1,
+                              borderWidth: answers[q.id]?.ratingValue === opt.value ? 3 : 2,
+                              borderColor: answers[q.id]?.ratingValue === opt.value ? opt.color : undefined,
+                              bgcolor: answers[q.id]?.ratingValue === opt.value ? opt.color + '15' : undefined,
+                              transition: 'all 0.2s ease',
+                              '&:hover': { transform: assistedMode ? 'scale(1.08)' : 'none' },
+                            }}>
                             {opt.icon}
-                            <Typography variant="caption" sx={{ mt: 0.5, fontSize: assistedMode ? '0.9rem' : '0.7rem' }}>
+                            <Typography variant={assistedMode ? 'body1' : 'caption'} sx={{ mt: 1, fontWeight: 600 }}>
                               {opt.label}
                             </Typography>
                           </Button>
@@ -205,13 +303,19 @@ export default function FeedbackFormPage() {
                     )}
 
                     {q.type === 'Rating' && (
-                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', gap: assistedMode ? 3 : 2, flexWrap: 'wrap', justifyContent: assistedMode ? 'center' : 'flex-start' }}>
                         {options.map((opt, idx) => (
                           <Button key={idx}
                             variant={answers[q.id]?.selectedOption === opt ? 'contained' : 'outlined'}
                             color={idx === 0 ? 'success' : idx === 1 ? 'primary' : 'error'}
                             onClick={() => setAnswer(q.id, { ratingValue: options.length - idx, selectedOption: opt })}
-                            sx={{ fontSize: assistedMode ? '1.1rem' : '0.9rem', py: assistedMode ? 2 : 1 }}>
+                            sx={{
+                              fontSize: assistedMode ? '1.3rem' : '0.9rem',
+                              py: assistedMode ? 3 : 1, px: assistedMode ? 4 : 2,
+                              minHeight: assistedMode ? 80 : 'auto',
+                              borderRadius: assistedMode ? 3 : 1,
+                              fontWeight: assistedMode ? 700 : 500,
+                            }}>
                             {opt}
                           </Button>
                         ))}
@@ -219,37 +323,86 @@ export default function FeedbackFormPage() {
                     )}
 
                     {q.type === 'YesNo' && (
-                      <ToggleButtonGroup
-                        exclusive
-                        value={answers[q.id]?.selectedOption || ''}
-                        onChange={(_, v) => v && setAnswer(q.id, { selectedOption: v, ratingValue: v === 'Da' ? 1 : 0 })}
-                        size={assistedMode ? 'large' : 'medium'}>
-                        <ToggleButton value="Da" color={q.isCorruptionAlert ? 'error' : 'primary'}>
-                          {t('common.yes')}
-                        </ToggleButton>
-                        <ToggleButton value="Nu" color="primary">{t('common.no')}</ToggleButton>
-                      </ToggleButtonGroup>
+                      <Box sx={{ display: 'flex', gap: assistedMode ? 4 : 2, justifyContent: 'center' }}>
+                        {assistedMode ? (
+                          <>
+                            <Button
+                              variant={answers[q.id]?.selectedOption === 'Da' ? 'contained' : 'outlined'}
+                              color={q.isCorruptionAlert ? 'error' : 'success'}
+                              onClick={() => setAnswer(q.id, { selectedOption: 'Da', ratingValue: 1 })}
+                              sx={{ fontSize: '1.5rem', py: 3, px: 6, minWidth: 140, minHeight: 100, borderRadius: 3, fontWeight: 700 }}
+                            >
+                              ✓ {t('common.yes')}
+                            </Button>
+                            <Button
+                              variant={answers[q.id]?.selectedOption === 'Nu' ? 'contained' : 'outlined'}
+                              color="error"
+                              onClick={() => setAnswer(q.id, { selectedOption: 'Nu', ratingValue: 0 })}
+                              sx={{ fontSize: '1.5rem', py: 3, px: 6, minWidth: 140, minHeight: 100, borderRadius: 3, fontWeight: 700 }}
+                            >
+                              ✗ {t('common.no')}
+                            </Button>
+                          </>
+                        ) : (
+                          <ToggleButtonGroup
+                            exclusive
+                            value={answers[q.id]?.selectedOption || ''}
+                            onChange={(_, v) => v && setAnswer(q.id, { selectedOption: v, ratingValue: v === 'Da' ? 1 : 0 })}
+                            size="medium">
+                            <ToggleButton value="Da" color={q.isCorruptionAlert ? 'error' : 'primary'}>
+                              {t('common.yes')}
+                            </ToggleButton>
+                            <ToggleButton value="Nu" color="primary">{t('common.no')}</ToggleButton>
+                          </ToggleButtonGroup>
+                        )}
+                      </Box>
                     )}
 
                     {q.type === 'YesPartialNo' && (
-                      <ToggleButtonGroup
-                        exclusive
-                        value={answers[q.id]?.selectedOption || ''}
-                        onChange={(_, v) => v && setAnswer(q.id, { selectedOption: v, ratingValue: v.includes('intotdeauna') ? 2 : v.includes('partial') || v.includes('uneori') ? 1 : 0 })}
-                        size={assistedMode ? 'large' : 'medium'}>
-                        <ToggleButton value="Da, intotdeauna">{i18n.language === 'en' ? 'Yes, always' : 'Da, intotdeauna'}</ToggleButton>
-                        <ToggleButton value="Da, partial">{i18n.language === 'en' ? 'Yes, partially' : 'Da, partial'}</ToggleButton>
-                        <ToggleButton value="Nu, niciodata">{i18n.language === 'en' ? 'No, never' : 'Nu, niciodata'}</ToggleButton>
-                      </ToggleButtonGroup>
+                      <Box sx={{ display: 'flex', gap: assistedMode ? 3 : 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {assistedMode ? (
+                          <>
+                            {[
+                              { value: 'Da, intotdeauna', label: i18n.language === 'en' ? 'Yes, always' : 'Da, întotdeauna', emoji: '✓✓', rating: 2, color: 'success' as const },
+                              { value: 'Da, partial', label: i18n.language === 'en' ? 'Yes, partially' : 'Da, parțial', emoji: '~', rating: 1, color: 'warning' as const },
+                              { value: 'Nu, niciodata', label: i18n.language === 'en' ? 'No, never' : 'Nu, niciodată', emoji: '✗', rating: 0, color: 'error' as const },
+                            ].map(opt => (
+                              <Button key={opt.value}
+                                variant={answers[q.id]?.selectedOption === opt.value ? 'contained' : 'outlined'}
+                                color={opt.color}
+                                onClick={() => setAnswer(q.id, { selectedOption: opt.value, ratingValue: opt.rating })}
+                                sx={{ fontSize: '1.2rem', py: 2.5, px: 3, minWidth: 160, minHeight: 80, borderRadius: 3, fontWeight: 600 }}
+                              >
+                                {opt.label}
+                              </Button>
+                            ))}
+                          </>
+                        ) : (
+                          <ToggleButtonGroup
+                            exclusive
+                            value={answers[q.id]?.selectedOption || ''}
+                            onChange={(_, v) => v && setAnswer(q.id, { selectedOption: v, ratingValue: v.includes('intotdeauna') ? 2 : v.includes('partial') || v.includes('uneori') ? 1 : 0 })}
+                            size="medium">
+                            <ToggleButton value="Da, intotdeauna">{i18n.language === 'en' ? 'Yes, always' : 'Da, intotdeauna'}</ToggleButton>
+                            <ToggleButton value="Da, partial">{i18n.language === 'en' ? 'Yes, partially' : 'Da, partial'}</ToggleButton>
+                            <ToggleButton value="Nu, niciodata">{i18n.language === 'en' ? 'No, never' : 'Nu, niciodata'}</ToggleButton>
+                          </ToggleButtonGroup>
+                        )}
+                      </Box>
                     )}
 
                     {q.type === 'MultipleChoice' && (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: assistedMode ? 2 : 1 }}>
                         {options.map((opt, idx) => (
                           <Button key={idx}
                             variant={answers[q.id]?.selectedOption === opt ? 'contained' : 'outlined'}
                             onClick={() => setAnswer(q.id, { selectedOption: opt })}
-                            sx={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: assistedMode ? '1rem' : '0.85rem' }}>
+                            sx={{
+                              justifyContent: 'flex-start', textAlign: 'left',
+                              fontSize: assistedMode ? '1.2rem' : '0.85rem',
+                              py: assistedMode ? 2.5 : 1, px: assistedMode ? 3 : 2,
+                              borderRadius: assistedMode ? 3 : 1,
+                            }}>
                             {opt}
                           </Button>
                         ))}
@@ -257,16 +410,66 @@ export default function FeedbackFormPage() {
                     )}
 
                     {q.type === 'FreeText' && (
-                      <TextField
-                        multiline rows={3} fullWidth
-                        value={answers[q.id]?.textValue || ''}
-                        onChange={e => setAnswer(q.id, { textValue: e.target.value })}
-                        sx={{ '& .MuiInputBase-input': { fontSize } }}
-                      />
+                      <Box>
+                        <TextField
+                          multiline rows={assistedMode ? 4 : 3} fullWidth
+                          value={answers[q.id]?.textValue || ''}
+                          onChange={e => setAnswer(q.id, { textValue: e.target.value })}
+                          placeholder={assistedMode ? (i18n.language === 'en' ? 'Type or use the microphone...' : 'Scrieti sau folositi microfonul...') : ''}
+                          sx={{ '& .MuiInputBase-input': { fontSize: assistedMode ? '1.3rem' : fontSize } }}
+                        />
+                        {assistedMode && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+                            <Button
+                              variant={isListening ? 'contained' : 'outlined'}
+                              color={isListening ? 'error' : 'primary'}
+                              startIcon={isListening ? <MicOff /> : <Mic />}
+                              onClick={() => isListening ? stopListening() : startListening(q.id)}
+                              sx={{ fontSize: '1.1rem', py: 1.5, px: 3, borderRadius: 3 }}
+                            >
+                              {isListening
+                                ? (i18n.language === 'en' ? 'Stop Recording' : 'Oprește Înregistrarea')
+                                : (i18n.language === 'en' ? 'Speak Answer' : 'Dictează Răspunsul')}
+                            </Button>
+                            {isListening && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'error.main', animation: 'pulse 1s infinite' }} />
+                                <Typography variant="body2" color="error">
+                                  {i18n.language === 'en' ? 'Listening...' : 'Ascult...'}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
                     )}
                   </Box>
                 );
               })}
+
+              {/* Assisted mode: intra-step navigation (one question at a time) */}
+              {assistedMode && currentQuestions.length > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<NavigateBefore />}
+                    disabled={assistedQIdx === 0}
+                    onClick={() => setAssistedQIdx(i => i - 1)}
+                    sx={{ fontSize: '1.1rem', py: 1.5, px: 3 }}
+                  >
+                    {i18n.language === 'en' ? 'Previous' : 'Precedenta'}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    endIcon={<NavigateNext />}
+                    disabled={assistedQIdx >= currentQuestions.length - 1}
+                    onClick={() => setAssistedQIdx(i => i + 1)}
+                    sx={{ fontSize: '1.1rem', py: 1.5, px: 3 }}
+                  >
+                    {i18n.language === 'en' ? 'Next Question' : 'Întrebarea Următoare'}
+                  </Button>
+                </Box>
+              )}
             </Box>
           )}
         </CardContent>

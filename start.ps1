@@ -9,14 +9,14 @@ Write-Host ""
 # Start the backend API
 Write-Host "[1/2] Starting Backend API (port 5000)..." -ForegroundColor Yellow
 $backendPath = Join-Path $PSScriptRoot "src\SmartHospital.API\SmartHospital.API"
-$backend = Start-Process -FilePath "dotnet" -ArgumentList "run", "--urls", "http://localhost:5000" -WorkingDirectory $backendPath -PassThru -NoNewWindow:$false
+$backend = Start-Process -FilePath "dotnet" -ArgumentList "run", "--urls", "http://localhost:5000" -WorkingDirectory $backendPath -PassThru
 
 Start-Sleep -Seconds 3
 
 # Start the frontend
 Write-Host "[2/2] Starting Frontend (port 5173)..." -ForegroundColor Yellow
 $frontendPath = Join-Path $PSScriptRoot "src\SmartHospital.Web"
-$frontend = Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory $frontendPath -PassThru -NoNewWindow:$false
+$frontend = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run dev" -WorkingDirectory $frontendPath -PassThru
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Green
@@ -36,6 +36,6 @@ Write-Host "Press Ctrl+C to stop..." -ForegroundColor DarkGray
 try {
     Wait-Process -Id $backend.Id
 } finally {
-    if (!$frontend.HasExited) { Stop-Process -Id $frontend.Id -Force }
-    if (!$backend.HasExited) { Stop-Process -Id $backend.Id -Force }
+    if ($frontend -and !$frontend.HasExited) { Stop-Process -Id $frontend.Id -Force -ErrorAction SilentlyContinue }
+    if ($backend -and !$backend.HasExited) { Stop-Process -Id $backend.Id -Force -ErrorAction SilentlyContinue }
 }
