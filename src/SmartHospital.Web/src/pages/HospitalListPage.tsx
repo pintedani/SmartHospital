@@ -155,6 +155,9 @@ export default function HospitalListPage() {
                   <Button component={Link} to={`/feedback/${hospital.id}`} size="small" variant="contained" color="secondary">
                     {t('hospitals.giveFeedback')}
                   </Button>
+                  <Button component={Link} to={`/reservation/${hospital.id}`} size="small" variant="contained" color="success">
+                    {t('reservation.bookNow')}
+                  </Button>
                 </CardActions>
               </Card>
             </Grid>

@@ -98,6 +98,9 @@ export default function HospitalDetailPage() {
         <Button component={Link} to={`/feedback/${hospital.id}`} variant="contained" color="secondary">
           {t('hospitals.giveFeedback')}
         </Button>
+        <Button component={Link} to={`/reservation/${hospital.id}`} variant="contained" color="success">
+          {t('reservation.bookNow')}
+        </Button>
         <Button variant="outlined" startIcon={<Download />} onClick={downloadReport}>
           {t('detail.downloadReport')}
         </Button>

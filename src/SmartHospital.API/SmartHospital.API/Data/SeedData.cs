@@ -36,6 +36,11 @@ public static class SeedData
         {
             await SeedUsersAsync(userManager, context);
         }
+
+        if (!context.SlotConfigurations.Any())
+        {
+            await SeedSlotConfigurationsAsync(context);
+        }
     }
 
     private static List<Hospital> GetHospitals()
@@ -894,5 +899,32 @@ public static class SeedData
             };
             await userManager.CreateAsync(manager2, "Manager123!");
         }
+    }
+
+    private static async Task SeedSlotConfigurationsAsync(AppDbContext context)
+    {
+        var departments = context.Departments.ToList();
+        var slots = new List<SlotConfiguration>();
+
+        foreach (var dept in departments)
+        {
+            // Mon-Fri, 08:00-16:00, 30-min slots, 2 patients per slot
+            for (var day = DayOfWeek.Monday; day <= DayOfWeek.Friday; day++)
+            {
+                slots.Add(new SlotConfiguration
+                {
+                    DepartmentId = dept.Id,
+                    DayOfWeek = day,
+                    StartTime = new TimeOnly(8, 0),
+                    EndTime = new TimeOnly(16, 0),
+                    SlotDurationMinutes = 30,
+                    MaxPatientsPerSlot = 2,
+                    IsActive = true,
+                });
+            }
+        }
+
+        context.SlotConfigurations.AddRange(slots);
+        await context.SaveChangesAsync();
     }
 }

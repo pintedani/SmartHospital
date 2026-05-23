@@ -13,6 +13,9 @@ import MapPage from './pages/MapPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import SymptomCheckerPage from './pages/SymptomCheckerPage';
+import ReservationPage from './pages/ReservationPage';
+import ReservationStatusPage from './pages/ReservationStatusPage';
+import ReservationManagePage from './pages/ReservationManagePage';
 
 function App() {
   return (
@@ -25,6 +28,9 @@ function App() {
               <Route path="/" element={<HospitalListPage />} />
               <Route path="/hospital/:id" element={<HospitalDetailPage />} />
               <Route path="/feedback/:hospitalId" element={<FeedbackFormPage />} />
+              <Route path="/reservation/:hospitalId" element={<ReservationPage />} />
+              <Route path="/reservation-status" element={<ReservationStatusPage />} />
+              <Route path="/reservations" element={<ReservationManagePage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/map" element={<MapPage />} />
               <Route path="/symptoms" element={<SymptomCheckerPage />} />

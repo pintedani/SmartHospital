@@ -14,6 +14,8 @@ public class AppDbContext : IdentityDbContext<HospitalManager>
     public DbSet<FeedbackSubmission> FeedbackSubmissions => Set<FeedbackSubmission>();
     public DbSet<FeedbackAnswer> FeedbackAnswers => Set<FeedbackAnswer>();
     public DbSet<AbuseAlert> AbuseAlerts => Set<AbuseAlert>();
+    public DbSet<Reservation> Reservations => Set<Reservation>();
+    public DbSet<SlotConfiguration> SlotConfigurations => Set<SlotConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -90,6 +92,33 @@ public class AppDbContext : IdentityDbContext<HospitalManager>
                 .WithMany()
                 .HasForeignKey(m => m.HospitalId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Reservation>(e =>
+        {
+            e.HasOne(r => r.Hospital)
+                .WithMany()
+                .HasForeignKey(r => r.HospitalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(r => r.Department)
+                .WithMany()
+                .HasForeignKey(r => r.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(r => r.AccessCode).IsUnique();
+            e.HasIndex(r => r.AppointmentDate);
+            e.HasIndex(r => new { r.DepartmentId, r.AppointmentDate, r.AppointmentTime });
+        });
+
+        builder.Entity<SlotConfiguration>(e =>
+        {
+            e.HasOne(s => s.Department)
+                .WithMany()
+                .HasForeignKey(s => s.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(s => new { s.DepartmentId, s.DayOfWeek });
         });
     }
 }

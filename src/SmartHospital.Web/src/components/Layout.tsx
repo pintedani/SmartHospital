@@ -8,6 +8,7 @@ import {
 import {
   Menu as MenuIcon, LocalHospital, Map, Dashboard,
   Login, Logout, AdminPanelSettings, Language, MedicalInformation,
+  EventNote, Search as SearchIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,8 +25,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { label: t('nav.hospitals'), path: '/', icon: <LocalHospital /> },
     { label: t('nav.symptoms'), path: '/symptoms', icon: <MedicalInformation /> },
+    { label: t('nav.reservationStatus'), path: '/reservation-status', icon: <SearchIcon /> },
     { label: t('nav.map'), path: '/map', icon: <Map /> },
     ...(isAuthenticated ? [
+      { label: t('nav.reservations'), path: '/reservations', icon: <EventNote /> },
       { label: t('nav.dashboard'), path: '/dashboard', icon: <Dashboard /> },
       { label: t('nav.admin'), path: '/admin', icon: <AdminPanelSettings /> },
     ] : []),
