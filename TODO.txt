@@ -1,0 +1,10 @@
+  Application Started!
+============================================
+
+  Frontend: http://localhost:5173
+  Backend:  http://localhost:5000
+  Swagger:  http://localhost:5000/swagger
+
+  Demo Credentials:
+    Admin:   admin@smarthospital.ro / Admin123!
+    Manager: manager.municipal@smarthospital.ro / Manager123!
