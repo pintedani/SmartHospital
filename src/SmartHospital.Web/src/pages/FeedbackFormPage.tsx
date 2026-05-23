@@ -41,6 +41,8 @@ export default function FeedbackFormPage() {
 
   // Assisted mode: one-question-at-a-time index
   const [assistedQIdx, setAssistedQIdx] = useState(0);
+  // Assisted mode: basic info field index (step 0)
+  const [assistedFieldIdx, setAssistedFieldIdx] = useState(0);
   // Voice input state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -97,11 +99,15 @@ export default function FeedbackFormPage() {
         setTimeout(() => speakText(text), 400);
       }
     }
+    if (assistedMode && activeStep === 0) {
+      const labels = [t('feedback.gender'), t('feedback.age'), t('feedback.department'), t('feedback.filledBy')];
+      setTimeout(() => speakText(labels[assistedFieldIdx] || ''), 400);
+    }
     return () => { window.speechSynthesis?.cancel(); };
-  }, [assistedQIdx, activeStep, assistedMode]);
+  }, [assistedQIdx, assistedFieldIdx, activeStep, assistedMode]);
 
   // Reset assisted question index on step change
-  useEffect(() => { setAssistedQIdx(0); }, [activeStep]);
+  useEffect(() => { setAssistedQIdx(0); setAssistedFieldIdx(0); }, [activeStep]);
   useEffect(() => {
     if (hospitalId) {
       api.get(`/feedback/questionnaire/${hospitalId}`).then(res => {
@@ -186,7 +192,7 @@ export default function FeedbackFormPage() {
       <Card sx={{ minHeight: 300 }}>
         <CardContent sx={{ p: assistedMode ? 4 : 3 }}>
           {/* Step 0: Basic Info */}
-          {activeStep === 0 && (
+          {activeStep === 0 && !assistedMode && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Typography variant="h6" sx={{ fontSize }}>{t('feedback.basicInfo')}</Typography>
 
@@ -223,6 +229,163 @@ export default function FeedbackFormPage() {
               </FormControl>
             </Box>
           )}
+
+          {/* Step 0: Basic Info - ASSISTED MODE (one field at a time, big buttons) */}
+          {activeStep === 0 && assistedMode && (() => {
+            const fields = [
+              { id: 'gender', label: t('feedback.gender') },
+              { id: 'age', label: t('feedback.age') },
+              { id: 'department', label: t('feedback.department') },
+              { id: 'filledBy', label: t('feedback.filledBy') },
+            ];
+            const currentField = fields[assistedFieldIdx];
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
+                {/* Progress */}
+                <Box sx={{ width: '100%', mb: 1 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={((assistedFieldIdx + 1) / fields.length) * 100}
+                    sx={{ height: 8, borderRadius: 4, mb: 1 }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center', display: 'block' }}>
+                    {assistedFieldIdx + 1} / {fields.length}
+                  </Typography>
+                </Box>
+
+                {/* Question label with speaker */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h5" sx={{ fontWeight: 600, textAlign: 'center' }}>
+                    {currentField.label}
+                  </Typography>
+                  <Tooltip title={t('feedback.listenQuestion')}>
+                    <IconButton onClick={() => speakText(currentField.label)} color={isSpeaking ? 'primary' : 'default'}>
+                      <VolumeUp />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                {/* Gender - big icon buttons */}
+                {currentField.id === 'gender' && (
+                  <Box sx={{ display: 'flex', gap: 4, justifyContent: 'center', mt: 2 }}>
+                    <Button
+                      variant={gender === 'Male' ? 'contained' : 'outlined'}
+                      onClick={() => setGender('Male')}
+                      sx={{ flexDirection: 'column', py: 3, px: 5, minWidth: 160, minHeight: 140, borderRadius: 4, fontSize: '1.3rem', fontWeight: 600,
+                        borderWidth: gender === 'Male' ? 3 : 2, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                    >
+                      <Box sx={{ fontSize: '3rem', mb: 1 }}>👨</Box>
+                      {t('feedback.male')}
+                    </Button>
+                    <Button
+                      variant={gender === 'Female' ? 'contained' : 'outlined'}
+                      onClick={() => setGender('Female')}
+                      sx={{ flexDirection: 'column', py: 3, px: 5, minWidth: 160, minHeight: 140, borderRadius: 4, fontSize: '1.3rem', fontWeight: 600,
+                        borderWidth: gender === 'Female' ? 3 : 2, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                    >
+                      <Box sx={{ fontSize: '3rem', mb: 1 }}>👩</Box>
+                      {t('feedback.female')}
+                    </Button>
+                  </Box>
+                )}
+
+                {/* Age - big number buttons in ranges */}
+                {currentField.id === 'age' && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', mt: 2, width: '100%' }}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                      {[
+                        { label: '< 18', range: '15' },
+                        { label: '18-30', range: '25' },
+                        { label: '31-45', range: '38' },
+                        { label: '46-60', range: '53' },
+                        { label: '61-75', range: '68' },
+                        { label: '75+', range: '80' },
+                      ].map(r => (
+                        <Button key={r.range}
+                          variant={age === r.range ? 'contained' : 'outlined'}
+                          onClick={() => setAge(r.range)}
+                          sx={{ py: 2.5, px: 3, minWidth: 100, minHeight: 80, borderRadius: 3, fontSize: '1.3rem', fontWeight: 700,
+                            borderWidth: age === r.range ? 3 : 2, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                        >
+                          {r.label}
+                        </Button>
+                      ))}
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {i18n.language === 'en' ? 'Or type exact age:' : 'Sau introduceți vârsta exactă:'}
+                    </Typography>
+                    <TextField
+                      type="number" value={age}
+                      onChange={e => setAge(e.target.value)}
+                      slotProps={{ htmlInput: { min: 0, max: 120, style: { fontSize: '1.5rem', textAlign: 'center' } } }}
+                      sx={{ width: 150, '& .MuiInputBase-root': { borderRadius: 3 } }}
+                    />
+                  </Box>
+                )}
+
+                {/* Department - big list buttons */}
+                {currentField.id === 'department' && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', mt: 2 }}>
+                    {departments.map(d => (
+                      <Button key={d.id}
+                        variant={departmentId === d.id.toString() ? 'contained' : 'outlined'}
+                        onClick={() => setDepartmentId(d.id.toString())}
+                        sx={{ justifyContent: 'flex-start', py: 2.5, px: 3, fontSize: '1.2rem', borderRadius: 3, fontWeight: 600,
+                          borderWidth: departmentId === d.id.toString() ? 3 : 2, transition: 'all 0.2s' }}
+                      >
+                        🏥 {i18n.language === 'en' && d.nameEN ? d.nameEN : d.name}
+                      </Button>
+                    ))}
+                  </Box>
+                )}
+
+                {/* FilledBy - big icon buttons */}
+                {currentField.id === 'filledBy' && (
+                  <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap', mt: 2 }}>
+                    {[
+                      { value: 'Patient', label: t('feedback.patient'), icon: '🧑‍⚕️' },
+                      { value: 'Relative', label: t('feedback.relative'), icon: '👨‍👩‍👧' },
+                      { value: 'Caregiver', label: t('feedback.caregiver'), icon: '🤝' },
+                    ].map(opt => (
+                      <Button key={opt.value}
+                        variant={filledBy === opt.value ? 'contained' : 'outlined'}
+                        onClick={() => setFilledBy(opt.value)}
+                        sx={{ flexDirection: 'column', py: 3, px: 4, minWidth: 150, minHeight: 130, borderRadius: 4, fontSize: '1.1rem', fontWeight: 600,
+                          borderWidth: filledBy === opt.value ? 3 : 2, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                      >
+                        <Box sx={{ fontSize: '2.5rem', mb: 1 }}>{opt.icon}</Box>
+                        {opt.label}
+                      </Button>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Intra-step navigation */}
+                {fields.length > 1 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 3 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<NavigateBefore />}
+                      disabled={assistedFieldIdx === 0}
+                      onClick={() => setAssistedFieldIdx(i => i - 1)}
+                      sx={{ fontSize: '1.1rem', py: 1.5, px: 3 }}
+                    >
+                      {i18n.language === 'en' ? 'Previous' : 'Precedenta'}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      endIcon={<NavigateNext />}
+                      disabled={assistedFieldIdx >= fields.length - 1}
+                      onClick={() => setAssistedFieldIdx(i => i + 1)}
+                      sx={{ fontSize: '1.1rem', py: 1.5, px: 3 }}
+                    >
+                      {i18n.language === 'en' ? 'Next' : 'Următorul'}
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
 
           {/* Question Steps */}
           {activeStep > 0 && (
