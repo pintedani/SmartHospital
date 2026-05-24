@@ -42,7 +42,7 @@ public class AnthropicAiService : IAiService
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         }
 
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient.Timeout = TimeSpan.FromMinutes(10);
     }
 
     public async Task<bool> IsEnabledAsync()
@@ -71,7 +71,7 @@ public class AnthropicAiService : IAiService
         var requestBody = new
         {
             model,
-            max_tokens = 1024,
+            max_tokens = 16384,
             messages = new[]
             {
                 new { role = "user", content = sanitizedMessage }
@@ -105,6 +105,9 @@ public class AnthropicAiService : IAiService
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
+            // Check for truncation (max_tokens hit)
+            var stopReason = root.TryGetProperty("stop_reason", out var sr) ? sr.GetString() : null;
+
             // Try Anthropic format: { content: [{ type: "text", text: "..." }] }
             if (root.TryGetProperty("content", out var contentArr) && contentArr.ValueKind == JsonValueKind.Array)
             {
@@ -123,6 +126,13 @@ public class AnthropicAiService : IAiService
                 var firstBlock = contentArr.EnumerateArray().FirstOrDefault();
                 if (firstBlock.TryGetProperty("text", out var fallbackText))
                     return fallbackText.GetString() ?? "";
+
+                // If only thinking blocks exist (max_tokens hit before text output)
+                if (stopReason == "max_tokens")
+                {
+                    _logger.LogWarning("[AI] Response truncated (max_tokens) - only thinking block received, no text output");
+                    throw new InvalidOperationException("AI response was truncated before generating output. Try again.");
+                }
             }
 
             // Try OpenAI format: { choices: [{ message: { content: "..." } }] }
@@ -176,5 +186,88 @@ public class AnthropicAiService : IAiService
         input = System.Text.RegularExpressions.Regex.Replace(input, @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[REDACTED]");
 
         return input;
+    }
+
+    public async Task<string> CompleteWithImageAsync(string systemPrompt, string userMessage, byte[] imageData, string mimeType, CancellationToken ct = default)
+    {
+        if (!CheckRateLimit())
+            throw new InvalidOperationException("AI rate limit exceeded (max 60 calls/hour)");
+
+        var model = _config["AI:Model"] ?? "glm-5";
+        var base64Image = Convert.ToBase64String(imageData);
+
+        var requestBody = new
+        {
+            model,
+            max_tokens = 16384,
+            messages = new[]
+            {
+                new
+                {
+                    role = "user",
+                    content = new object[]
+                    {
+                        new { type = "image", source = new { type = "base64", media_type = mimeType, data = base64Image } },
+                        new { type = "text", text = userMessage }
+                    }
+                }
+            },
+            system = systemPrompt
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        _logger.LogInformation("[AI] >>> VISION REQUEST to {BaseUrl}v1/messages", _httpClient.BaseAddress);
+        _logger.LogInformation("[AI] >>> Model: {Model}, Image size: {Size}KB", model, imageData.Length / 1024);
+
+        try
+        {
+            var response = await _httpClient.PostAsync("v1/messages", content, ct);
+            var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+            _logger.LogInformation("[AI] <<< Status: {Status}", response.StatusCode);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("[AI] <<< VISION ERROR: {Status} - {Body}", response.StatusCode, responseBody);
+                throw new HttpRequestException($"AI API returned {response.StatusCode}");
+            }
+
+            using var doc = JsonDocument.Parse(responseBody);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("content", out var contentArr) && contentArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var block in contentArr.EnumerateArray())
+                {
+                    var blockType = block.TryGetProperty("type", out var tp) ? tp.GetString() : null;
+                    if (blockType == "text" && block.TryGetProperty("text", out var textProp))
+                        return textProp.GetString() ?? "";
+                }
+                var firstBlock = contentArr.EnumerateArray().FirstOrDefault();
+                if (firstBlock.TryGetProperty("text", out var fallbackText))
+                    return fallbackText.GetString() ?? "";
+            }
+
+            if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array)
+            {
+                var first = choices.EnumerateArray().FirstOrDefault();
+                if (first.TryGetProperty("message", out var msg) && msg.TryGetProperty("content", out var c))
+                    return c.GetString() ?? "";
+            }
+
+            return responseBody;
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogWarning("[AI] <<< VISION TIMEOUT after 30s");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AI] <<< VISION EXCEPTION: {Message}", ex.Message);
+            throw;
+        }
     }
 }

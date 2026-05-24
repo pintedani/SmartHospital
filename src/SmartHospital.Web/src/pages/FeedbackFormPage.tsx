@@ -4,9 +4,10 @@ import {
   Container, Typography, Box, Button, Stepper, Step, StepLabel,
   Card, CardContent, ToggleButtonGroup, ToggleButton, TextField,
   MenuItem, Select, FormControl, InputLabel, Alert, Grow, Switch,
-  FormControlLabel, IconButton, LinearProgress, Tooltip,
+  FormControlLabel, IconButton, LinearProgress, Tooltip, CircularProgress,
+  Chip, Divider,
 } from '@mui/material';
-import { SentimentVeryDissatisfied, SentimentDissatisfied, SentimentSatisfied, SentimentVerySatisfied, CheckCircle, Mic, MicOff, VolumeUp, NavigateNext, NavigateBefore } from '@mui/icons-material';
+import { SentimentVeryDissatisfied, SentimentDissatisfied, SentimentSatisfied, SentimentVerySatisfied, CheckCircle, Mic, MicOff, VolumeUp, NavigateNext, NavigateBefore, CameraAlt, UploadFile, DocumentScanner, Edit, RecordVoiceOver } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -33,6 +34,16 @@ export default function FeedbackFormPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [assistedMode, setAssistedMode] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [inputMode, setInputMode] = useState<'normal' | 'assisted' | 'scan'>('normal');
+
+  // Scan mode state
+  const [scanImage, setScanImage] = useState<File | null>(null);
+  const [scanPreview, setScanPreview] = useState<string>('');
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanError, setScanError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [gender, setGender] = useState<string>('');
@@ -178,6 +189,64 @@ export default function FeedbackFormPage() {
     setSubmitted(true);
   };
 
+  const handleScanImage = (file: File | null) => {
+    if (!file) return;
+    setScanImage(file);
+    setScanPreview(URL.createObjectURL(file));
+    setScanResult(null);
+    setScanError('');
+  };
+
+  const handleScanSubmit = async () => {
+    if (!scanImage || !hospitalId) return;
+    setScanLoading(true);
+    setScanError('');
+    setScanResult(null);
+
+    const formData = new FormData();
+    formData.append('image', scanImage);
+
+    try {
+      const res = await api.post(`/feedback/scan/${hospitalId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (res.data.success) {
+        setScanResult(res.data.parsed);
+      } else {
+        setScanError(res.data.message || (i18n.language === 'ro' ? 'Nu s-a putut citi formularul.' : 'Could not read the form.'));
+      }
+    } catch (err: any) {
+      setScanError(err?.response?.data?.message || (i18n.language === 'ro' ? 'Eroare la scanare.' : 'Scan error.'));
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const applyScanResults = () => {
+    if (!scanResult) return;
+    // Apply parsed data to form state
+    if (scanResult.patientGender) setGender(scanResult.patientGender);
+    if (scanResult.patientAge) setAge(String(scanResult.patientAge));
+    if (scanResult.departmentId) setDepartmentId(String(scanResult.departmentId));
+    if (scanResult.filledBy) setFilledBy(scanResult.filledBy);
+    if (scanResult.answers) {
+      const newAnswers: Record<number, { ratingValue?: number; textValue?: string; selectedOption?: string }> = {};
+      for (const ans of scanResult.answers) {
+        newAnswers[ans.questionId] = {
+          ratingValue: ans.ratingValue ?? undefined,
+          textValue: ans.textValue ?? undefined,
+          selectedOption: ans.selectedOption ?? undefined,
+        };
+      }
+      setAnswers(newAnswers);
+    }
+    // Switch to normal mode for review and submission
+    setInputMode('normal');
+    setAssistedMode(false);
+    setActiveStep(0);
+  };
+
   const fontSize = assistedMode ? '1.2rem' : '1rem';
 
   if (submitted) {
@@ -199,11 +268,213 @@ export default function FeedbackFormPage() {
       <Typography color="text.secondary" sx={{ mb: 1 }}>{hospitalName}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{t('feedback.subtitle')}</Typography>
 
-      <FormControlLabel
-        control={<Switch checked={assistedMode} onChange={(_, v) => setAssistedMode(v)} />}
-        label={t('feedback.assistedMode')}
-        sx={{ mb: 3 }}
-      />
+      {/* Input Mode Selector */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
+          {i18n.language === 'ro' ? 'Canal de introducere' : 'Input Channel'}
+        </Typography>
+        <ToggleButtonGroup
+          value={inputMode}
+          exclusive
+          onChange={(_, v) => { if (v) { setInputMode(v); setAssistedMode(v === 'assisted'); } }}
+          sx={{
+            width: '100%',
+            '& .MuiToggleButton-root': {
+              flex: 1,
+              py: 1.5,
+              px: 2,
+              borderRadius: '12px !important',
+              border: '2px solid',
+              borderColor: 'divider',
+              mx: 0.5,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              gap: 1,
+              transition: 'all 0.2s ease',
+              '&:first-of-type': { ml: 0 },
+              '&:last-of-type': { mr: 0 },
+              '&.Mui-selected': {
+                borderColor: 'primary.main',
+                bgcolor: 'primary.main',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+                '&:hover': { bgcolor: 'primary.dark' },
+              },
+              '&:hover': { bgcolor: 'action.hover' },
+            },
+          }}
+        >
+          <ToggleButton value="normal">
+            <Edit sx={{ fontSize: 20 }} />
+            Standard
+          </ToggleButton>
+          <ToggleButton value="assisted">
+            <RecordVoiceOver sx={{ fontSize: 20 }} />
+            Audio+Visual
+          </ToggleButton>
+          <ToggleButton value="scan">
+            <DocumentScanner sx={{ fontSize: 20 }} />
+            {i18n.language === 'ro' ? 'Scanează' : 'Scan'}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {/* SCAN MODE */}
+      {inputMode === 'scan' && (
+        <Card sx={{ p: 3, mb: 4, border: '1px solid', borderColor: 'primary.light' }}>
+          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DocumentScanner color="primary" />
+            {i18n.language === 'ro' ? 'Scanare formular fizic' : 'Scan Physical Form'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            {i18n.language === 'ro'
+              ? 'Fotografiază sau încarcă o imagine a formularului de feedback completat. AI-ul va extrage automat răspunsurile.'
+              : 'Take a photo or upload an image of the completed feedback form. AI will automatically extract the answers.'}
+          </Typography>
+
+          {/* Upload buttons */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              startIcon={<CameraAlt />}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              {i18n.language === 'ro' ? 'Fotografiază' : 'Take Photo'}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<UploadFile />}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {i18n.language === 'ro' ? 'Încarcă imagine' : 'Upload Image'}
+            </Button>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={e => handleScanImage(e.target.files?.[0] || null)}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              style={{ display: 'none' }}
+              onChange={e => handleScanImage(e.target.files?.[0] || null)}
+            />
+          </Box>
+
+          {/* Preview */}
+          {scanPreview && (
+            <Box sx={{ mb: 3 }}>
+              <img
+                src={scanPreview}
+                alt="Scanned form"
+                style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8, border: '1px solid #e0e0e0' }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {scanImage?.name} ({(scanImage?.size ?? 0 / 1024).toFixed(0)} KB)
+              </Typography>
+            </Box>
+          )}
+
+          {/* Scan button */}
+          {scanImage && !scanResult && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleScanSubmit}
+              disabled={scanLoading}
+              startIcon={scanLoading ? <CircularProgress size={18} /> : <DocumentScanner />}
+              sx={{ mb: 2 }}
+            >
+              {scanLoading
+                ? (i18n.language === 'ro' ? 'Se procesează cu AI...' : 'Processing with AI...')
+                : (i18n.language === 'ro' ? 'Analizează cu AI' : 'Analyze with AI')}
+            </Button>
+          )}
+
+          {/* Error */}
+          {scanError && (
+            <Alert severity="error" sx={{ mb: 2 }}>{scanError}</Alert>
+          )}
+
+          {/* Results */}
+          {scanResult && (
+            <Box>
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {i18n.language === 'ro'
+                  ? `Formularul a fost scanat cu succes! Încredere: ${Math.round((scanResult.confidence || 0.8) * 100)}%`
+                  : `Form scanned successfully! Confidence: ${Math.round((scanResult.confidence || 0.8) * 100)}%`}
+              </Alert>
+
+              {scanResult.notes && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  {scanResult.notes}
+                </Alert>
+              )}
+
+              {/* Summary of extracted data */}
+              <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  {i18n.language === 'ro' ? 'Date extrase:' : 'Extracted Data:'}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                  {scanResult.patientGender && <Chip size="small" label={`${i18n.language === 'ro' ? 'Gen' : 'Gender'}: ${scanResult.patientGender}`} />}
+                  {scanResult.patientAge && <Chip size="small" label={`${i18n.language === 'ro' ? 'Vârstă' : 'Age'}: ${scanResult.patientAge}`} />}
+                  {scanResult.departmentId && <Chip size="small" label={`${i18n.language === 'ro' ? 'Secție' : 'Dept'}: ${departments.find(d => d.id === scanResult.departmentId)?.name || scanResult.departmentId}`} />}
+                  {scanResult.filledBy && <Chip size="small" label={`${i18n.language === 'ro' ? 'Completat de' : 'Filled by'}: ${scanResult.filledBy}`} />}
+                </Box>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="caption" color="text.secondary">
+                  {i18n.language === 'ro'
+                    ? `${scanResult.answers?.length || 0} răspunsuri extrase din ${questions.length} întrebări`
+                    : `${scanResult.answers?.length || 0} answers extracted from ${questions.length} questions`}
+                </Typography>
+
+                {/* Show extracted answers */}
+                {scanResult.answers?.map((ans: any) => {
+                  const q = questions.find(qq => qq.id === ans.questionId);
+                  if (!q) return null;
+                  return (
+                    <Box key={ans.questionId} sx={{ mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'primary.light' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {i18n.language === 'ro' ? q.textRO : q.textEN}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {ans.ratingValue != null && `${ans.ratingValue}/4`}
+                        {ans.selectedOption && ans.selectedOption}
+                        {ans.textValue && `"${ans.textValue}"`}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={applyScanResults}
+                >
+                  {i18n.language === 'ro' ? 'Confirmă și revizuiește' : 'Confirm & Review'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => { setScanResult(null); setScanImage(null); setScanPreview(''); }}
+                >
+                  {i18n.language === 'ro' ? 'Scanează din nou' : 'Scan Again'}
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </Card>
+      )}
+
+      {/* NORMAL / ASSISTED MODE */}
+      {inputMode !== 'scan' && (<>
 
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
         {steps.map((_, idx) => (
@@ -690,6 +961,8 @@ export default function FeedbackFormPage() {
           </Button>
         )}
       </Box>
+
+      </>)}
     </Container>
   );
 }

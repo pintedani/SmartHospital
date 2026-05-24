@@ -157,6 +157,43 @@ public class AnalyticsController : ControllerBase
         return result;
     }
 
+    [HttpGet("feedbacks/{hospitalId}")]
+    public async Task<ActionResult<object>> GetFeedbacks(int hospitalId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var query = _db.FeedbackSubmissions
+            .Where(f => hospitalId == 0 || f.HospitalId == hospitalId)
+            .Include(f => f.Hospital)
+            .Include(f => f.Department)
+            .Include(f => f.Answers).ThenInclude(a => a.Question)
+            .OrderByDescending(f => f.SubmittedAt);
+
+        var totalCount = await query.CountAsync();
+        var feedbacks = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return new
+        {
+            totalCount,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            items = feedbacks.Select(f => new
+            {
+                f.Id,
+                f.HospitalId,
+                HospitalName = f.Hospital.Name,
+                DepartmentName = f.Department?.Name,
+                SubmittedAt = f.SubmittedAt,
+                PatientGender = f.PatientGender?.ToString(),
+                PatientAge = f.PatientAge,
+                FilledBy = f.FilledBy.ToString(),
+                f.IsAnonymous,
+                AverageRating = f.Answers.Where(a => a.RatingValue.HasValue).Select(a => a.RatingValue!.Value).DefaultIfEmpty(0).Average(),
+                AnswerCount = f.Answers.Count,
+                HasAlert = _db.AbuseAlerts.Any(al => al.FeedbackSubmissionId == f.Id),
+            }).ToList()
+        };
+    }
+
     [HttpGet("alerts/{hospitalId}")]
     public async Task<ActionResult<List<AbuseAlertDto>>> GetAlerts(int hospitalId)
     {

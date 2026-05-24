@@ -3,7 +3,7 @@ import {
   Container, Typography, Box, Grid, Card, CardContent, Select, MenuItem,
   FormControl, InputLabel, Chip, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, CircularProgress, Dialog, DialogTitle,
-  DialogContent, DialogActions, Divider, IconButton,
+  DialogContent, DialogActions, Divider, IconButton, Pagination,
 } from '@mui/material';
 import { Warning, TrendingUp, People, Feedback, Visibility, AutoAwesome, Refresh } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -44,6 +44,11 @@ export default function DashboardPage() {
   const [aiSummary, setAiSummary] = useState<any>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiHistory, setAiHistory] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [feedbacksPage, setFeedbacksPage] = useState(1);
+  const [feedbacksTotalPages, setFeedbacksTotalPages] = useState(1);
+  const [feedbacksTotal, setFeedbacksTotal] = useState(0);
+  const [feedbacksLoading, setFeedbacksLoading] = useState(false);
 
   const regenerateAiSummary = async () => {
     if (selectedHospital === null) return;
@@ -101,7 +106,23 @@ export default function DashboardPage() {
 
     // Fetch AI history
     api.get(`/ai/summary-history/${selectedHospital}`).then(res => setAiHistory(res.data)).catch(() => {});
+
+    // Fetch feedbacks (reset to page 1)
+    setFeedbacksPage(1);
   }, [selectedHospital]);
+
+  useEffect(() => {
+    if (selectedHospital === null) return;
+    setFeedbacksLoading(true);
+    api.get(`/analytics/feedbacks/${selectedHospital}?page=${feedbacksPage}&pageSize=20`)
+      .then(res => {
+        setFeedbacks(res.data.items);
+        setFeedbacksTotalPages(res.data.totalPages);
+        setFeedbacksTotal(res.data.totalCount);
+      })
+      .catch(() => setFeedbacks([]))
+      .finally(() => setFeedbacksLoading(false));
+  }, [selectedHospital, feedbacksPage]);
 
   const reviewAlert = async (alertId: number) => {
     await api.put(`/analytics/alerts/${alertId}/review`, { notes: 'Reviewed by manager' });
@@ -437,6 +458,67 @@ export default function DashboardPage() {
                   </Box>
                 ))}
               </Box>
+            )}
+          </Card>
+
+          {/* All Feedbacks */}
+          <Card sx={{ p: 3, mb: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                {i18n.language === 'ro' ? 'Toate feedback-urile' : 'All Feedbacks'}
+                <Chip size="small" label={feedbacksTotal} sx={{ ml: 1 }} />
+              </Typography>
+              {feedbacksLoading && <CircularProgress size={20} />}
+            </Box>
+            {feedbacks.length === 0 && !feedbacksLoading ? (
+              <Typography color="text.secondary">
+                {i18n.language === 'ro' ? 'Nu există feedback-uri.' : 'No feedbacks found.'}
+              </Typography>
+            ) : (
+              <>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{i18n.language === 'ro' ? 'Data' : 'Date'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Spital' : 'Hospital'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Secție' : 'Department'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Scor mediu' : 'Avg Rating'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Completat de' : 'Filled by'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Răspunsuri' : 'Answers'}</TableCell>
+                        <TableCell>{i18n.language === 'ro' ? 'Alertă' : 'Alert'}</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {feedbacks.map((fb: any) => (
+                        <TableRow key={fb.id} hover sx={{ bgcolor: fb.hasAlert ? 'error.50' : undefined }}>
+                          <TableCell>{new Date(fb.submittedAt).toLocaleDateString()}</TableCell>
+                          <TableCell>{fb.hospitalName}</TableCell>
+                          <TableCell>{fb.departmentName || '—'}</TableCell>
+                          <TableCell>
+                            <Chip size="small" variant="outlined"
+                              color={fb.averageRating >= 3 ? 'success' : fb.averageRating >= 2 ? 'warning' : 'error'}
+                              label={fb.averageRating.toFixed(1)} />
+                          </TableCell>
+                          <TableCell>{fb.filledBy}{fb.isAnonymous ? ' 🕶️' : ''}</TableCell>
+                          <TableCell>{fb.answerCount}</TableCell>
+                          <TableCell>{fb.hasAlert ? <Warning color="error" fontSize="small" /> : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                {feedbacksTotalPages > 1 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                    <Pagination
+                      count={feedbacksTotalPages}
+                      page={feedbacksPage}
+                      onChange={(_, p) => setFeedbacksPage(p)}
+                      color="primary"
+                    />
+                  </Box>
+                )}
+              </>
             )}
           </Card>
 

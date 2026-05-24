@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -7,6 +8,7 @@ using SmartHospital.API.Data;
 using SmartHospital.API.DTOs;
 using SmartHospital.API.Hubs;
 using SmartHospital.API.Models;
+using SmartHospital.API.Services.AI;
 
 namespace SmartHospital.API.Controllers;
 
@@ -16,11 +18,13 @@ public class FeedbackController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IHubContext<AlertHub> _alertHub;
+    private readonly IAiService _ai;
 
-    public FeedbackController(AppDbContext db, IHubContext<AlertHub> alertHub)
+    public FeedbackController(AppDbContext db, IHubContext<AlertHub> alertHub, IAiService ai)
     {
         _db = db;
         _alertHub = alertHub;
+        _ai = ai;
     }
 
     [HttpGet("questionnaire/{hospitalId}")]
@@ -183,5 +187,122 @@ public class FeedbackController : ControllerBase
         });
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Scan a physical feedback form image using AI vision and extract answers.
+    /// </summary>
+    [HttpPost("scan/{hospitalId}")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10MB max
+    public async Task<ActionResult> ScanFeedbackForm(int hospitalId, IFormFile image)
+    {
+        if (image == null || image.Length == 0)
+            return BadRequest("No image provided");
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp", "image/gif" };
+        if (!allowedTypes.Contains(image.ContentType.ToLower()))
+            return BadRequest("Unsupported image format. Use JPEG, PNG, WebP or GIF.");
+
+        if (!await _ai.IsEnabledAsync())
+            return Ok(new { success = false, message = "AI is not enabled" });
+
+        var questions = await _db.Questions.OrderBy(q => q.OrderIndex).ToListAsync();
+        var hospital = await _db.Hospitals
+            .Include(h => h.Departments.Where(d => d.IsActive))
+            .FirstOrDefaultAsync(h => h.Id == hospitalId);
+        if (hospital == null) return NotFound("Hospital not found");
+
+        // Build question context for the AI
+        var questionContext = string.Join("\n", questions.Select(q =>
+            $"[Q{q.Id}] ({q.Type}) {q.TextRO} | Options: {q.OptionsJson ?? "N/A"} | WizardStep: {q.WizardStep}"));
+
+        var departmentList = string.Join(", ", hospital.Departments.Select(d => $"{d.Id}={d.Name}"));
+
+        var systemPrompt = @"Ești un asistent AI pentru un sistem spitalicesc. Analizezi textul extras prin OCR din formulare de feedback completate de pacienți.
+Extrage răspunsurile din textul formularului scanat și mapează-le la întrebările din sistem.
+
+IMPORTANT: Răspunde STRICT în format JSON valid. Nu adăuga text suplimentar.";
+
+        var userMessage = $@"Analizează textul extras prin OCR din formularul de feedback completat și extrage răspunsurile.
+
+Întrebările din sistem (mapează răspunsurile la aceste ID-uri):
+{questionContext}
+
+Departamente disponibile: {departmentList}
+
+Răspunde STRICT în acest format JSON:
+{{
+  ""success"": true,
+  ""patientGender"": ""Male"" sau ""Female"" sau null,
+  ""patientAge"": număr sau null,
+  ""departmentId"": ID departament sau null,
+  ""filledBy"": ""Patient"" sau ""Relative"" sau ""Caregiver"",
+  ""answers"": [
+    {{ ""questionId"": ID, ""ratingValue"": 1-4 sau null, ""textValue"": ""text"" sau null, ""selectedOption"": ""opțiune"" sau null }}
+  ],
+  ""confidence"": 0.0-1.0,
+  ""notes"": ""Observații despre calitatea scanării sau probleme identificate""
+}}
+
+Dacă nu poți citi formularul clar, returnează {{ ""success"": false, ""message"": ""Motivul"" }}.";
+
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            await image.CopyToAsync(memoryStream);
+            var imageBytes = memoryStream.ToArray();
+
+            // Use OCR to extract text from image, then pass to text AI
+            var tessDataPath = Path.Combine(AppContext.BaseDirectory, "tessdata");
+            string ocrText;
+            using (var engine = new Tesseract.TesseractEngine(tessDataPath, "ron+eng", Tesseract.EngineMode.Default))
+            using (var pix = Tesseract.Pix.LoadFromMemory(imageBytes))
+            using (var page = engine.Process(pix))
+            {
+                ocrText = page.GetText();
+            }
+
+            if (string.IsNullOrWhiteSpace(ocrText))
+                return Ok(new { success = false, message = "Nu s-a putut extrage text din imagine. Încercați o imagine mai clară." });
+
+            var fullPrompt = $"{userMessage}\n\n--- TEXT EXTRAS DIN FORMULAR (OCR) ---\n{ocrText}";
+            var response = await _ai.CompleteAsync(systemPrompt, fullPrompt);
+
+            // Parse the JSON response
+            var jsonResponse = response.Trim();
+            if (jsonResponse.StartsWith("```"))
+            {
+                var firstNl = jsonResponse.IndexOf('\n');
+                var lastFence = jsonResponse.LastIndexOf("```");
+                if (firstNl > 0 && lastFence > firstNl)
+                    jsonResponse = jsonResponse[(firstNl + 1)..lastFence].Trim();
+            }
+
+            using var doc = JsonDocument.Parse(jsonResponse);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("success", out var successProp) && !successProp.GetBoolean())
+            {
+                var msg = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : "Could not read form";
+                return Ok(new { success = false, message = msg });
+            }
+
+            // Return parsed data for frontend confirmation
+            return Ok(new
+            {
+                success = true,
+                parsed = JsonSerializer.Deserialize<JsonElement>(jsonResponse),
+                hospitalId,
+                hospitalName = hospital.Name,
+            });
+        }
+        catch (JsonException)
+        {
+            return Ok(new { success = false, message = "AI returned invalid response format" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = $"Scan failed: {ex.Message}" });
+        }
     }
 }
