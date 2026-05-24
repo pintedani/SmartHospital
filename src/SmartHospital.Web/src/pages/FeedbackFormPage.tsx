@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { SentimentVeryDissatisfied, SentimentDissatisfied, SentimentSatisfied, SentimentVerySatisfied, CheckCircle, Mic, MicOff, VolumeUp, NavigateNext, NavigateBefore } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
 interface Question {
@@ -23,6 +24,7 @@ export default function FeedbackFormPage() {
   const [searchParams] = useSearchParams();
   const deptParam = searchParams.get('dept');
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
@@ -37,6 +39,7 @@ export default function FeedbackFormPage() {
   const [age, setAge] = useState<string>('');
   const [departmentId, setDepartmentId] = useState<string>(deptParam || '');
   const [filledBy, setFilledBy] = useState<string>('Patient');
+  const [isAnonymous, setIsAnonymous] = useState(true);
   const [answers, setAnswers] = useState<Record<number, { ratingValue?: number; textValue?: string; selectedOption?: string }>>({});
 
   // Assisted mode: one-question-at-a-time index
@@ -48,6 +51,16 @@ export default function FeedbackFormPage() {
   const recognitionRef = useRef<any>(null);
   // TTS state
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [, setVoicesLoaded] = useState(false);
+
+  // Preload speech synthesis voices
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => setVoicesLoaded(true);
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+      if (window.speechSynthesis.getVoices().length > 0) setVoicesLoaded(true);
+    }
+  }, []);
 
   // Web Speech API - Voice Recognition
   const startListening = (questionId: number) => {
@@ -83,8 +96,16 @@ export default function FeedbackFormPage() {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = i18n.language === 'ro' ? 'ro-RO' : 'en-US';
+    const targetLang = i18n.language === 'ro' ? 'ro' : 'en';
+    utterance.lang = targetLang === 'ro' ? 'ro-RO' : 'en-US';
     utterance.rate = 0.85;
+    // Explicitly select a voice matching the target language
+    const voices = window.speechSynthesis.getVoices();
+    const matchingVoice = voices.find(v => v.lang.startsWith(targetLang) && v.localService) ||
+                          voices.find(v => v.lang.startsWith(targetLang));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
     utterance.onend = () => setIsSpeaking(false);
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
@@ -150,6 +171,7 @@ export default function FeedbackFormPage() {
       patientGender: gender === 'Male' ? 0 : gender === 'Female' ? 1 : null,
       patientAge: age ? parseInt(age) : null,
       filledBy: filledBy === 'Patient' ? 0 : filledBy === 'Relative' ? 1 : 2,
+      isAnonymous: isAnonymous,
       answers: feedbackAnswers,
     });
 
@@ -227,6 +249,21 @@ export default function FeedbackFormPage() {
                   <MenuItem value="Caregiver">{t('feedback.caregiver')}</MenuItem>
                 </Select>
               </FormControl>
+
+              {user && (
+                <Box sx={{ p: 2, bgcolor: isAnonymous ? 'grey.50' : 'success.50', borderRadius: 1, border: '1px solid', borderColor: isAnonymous ? 'grey.300' : 'success.light' }}>
+                  <FormControlLabel
+                    control={<Switch checked={!isAnonymous} onChange={(_, v) => setIsAnonymous(!v)} />}
+                    label={i18n.language === 'ro' ? 'Permite contactarea mea de către administrație' : 'Allow administration to contact me'}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 6 }}>
+                    {isAnonymous
+                      ? (i18n.language === 'ro' ? 'Feedback-ul va fi trimis anonim. Identitatea ta nu va fi vizibilă.' : 'Feedback will be submitted anonymously. Your identity will not be visible.')
+                      : (i18n.language === 'ro' ? `Feedback-ul va fi asociat cu contul tău (${user.email}). Managerii pot lua legătura cu tine.` : `Feedback will be linked to your account (${user.email}). Managers may contact you.`)
+                    }
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
 

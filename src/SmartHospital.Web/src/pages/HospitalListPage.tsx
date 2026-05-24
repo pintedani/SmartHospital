@@ -5,7 +5,7 @@ import {
   Box, Chip, Button, MenuItem, Select, FormControl, InputLabel,
   InputAdornment, Rating, Skeleton,
 } from '@mui/material';
-import { Search, Hotel, MedicalServices, Feedback, Circle } from '@mui/icons-material';
+import { Search, Hotel, MedicalServices, Feedback, Circle, CalendarMonth } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
@@ -144,15 +144,20 @@ export default function HospitalListPage() {
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={hospital.id}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Chip
                       label={t(`hospitalTypes.${hospital.type}`)}
                       size="small"
                       sx={{ bgcolor: typeColors[hospital.type] || '#666', color: 'white', fontWeight: 600 }}
                     />
-                    {hospital.averageRating && (
-                      <Rating value={hospital.averageRating / 1.0} max={4} size="small" readOnly precision={0.1} />
-                    )}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {hospital.averageRating && (
+                        <Rating value={hospital.averageRating / 1.0} max={4} size="small" readOnly precision={0.1} />
+                      )}
+                      <Button component={Link} to={`/feedback/${hospital.id}`} size="small" variant="contained" color="secondary" startIcon={<Feedback sx={{ fontSize: 16 }} />} sx={{ py: 0.3 }}>
+                        {i18n.language === 'ro' ? 'Scrie review' : 'Write review'}
+                      </Button>
+                    </Box>
                   </Box>
                   {budgetMap[hospital.id] && (
                     <Chip
@@ -182,10 +187,7 @@ export default function HospitalListPage() {
                   <Button component={Link} to={`/hospital/${hospital.id}`} size="small" variant="outlined">
                     {t('hospitals.viewDetails')}
                   </Button>
-                  <Button component={Link} to={`/feedback/${hospital.id}`} size="small" variant="contained" color="secondary">
-                    {t('hospitals.giveFeedback')}
-                  </Button>
-                  <Button component={Link} to={`/reservation/${hospital.id}`} size="small" variant="contained" color="success">
+                  <Button component={Link} to={`/reservation/${hospital.id}`} size="small" variant="contained" color="success" startIcon={<CalendarMonth />}>
                     {t('reservation.bookNow')}
                   </Button>
                 </CardActions>

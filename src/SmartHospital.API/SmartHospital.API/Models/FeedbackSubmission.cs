@@ -24,6 +24,9 @@ public class FeedbackSubmission
     /// <summary>Logged-in user who submitted (null if anonymous)</summary>
     public string? UserId { get; set; }
 
+    /// <summary>If true, the submission is anonymous even if the user is logged in</summary>
+    public bool IsAnonymous { get; set; }
+
     public ICollection<FeedbackAnswer> Answers { get; set; } = new List<FeedbackAnswer>();
     public ICollection<AbuseAlert> AbuseAlerts { get; set; } = new List<AbuseAlert>();
 }

@@ -76,6 +76,8 @@ public class FeedbackController : ControllerBase
 
         var accessToken = Guid.NewGuid().ToString("N")[..16];
 
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         var submission = new FeedbackSubmission
         {
             HospitalId = dto.HospitalId,
@@ -85,7 +87,8 @@ public class FeedbackController : ControllerBase
             FilledBy = dto.FilledBy,
             SubmittedAt = DateTime.UtcNow,
             AccessToken = accessToken,
-            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            IsAnonymous = dto.IsAnonymous,
+            UserId = dto.IsAnonymous ? null : userId,
         };
 
         foreach (var answerDto in dto.Answers)

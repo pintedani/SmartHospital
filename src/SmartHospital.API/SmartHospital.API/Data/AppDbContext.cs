@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<HospitalManager>
     public DbSet<SlotConfiguration> SlotConfigurations => Set<SlotConfiguration>();
     public DbSet<BudgetAllocation> BudgetAllocations => Set<BudgetAllocation>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<AiSummary> AiSummaries => Set<AiSummary>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -75,6 +75,7 @@ builder.Services.AddScoped<PdfReportService>();
 builder.Services.AddHttpClient<IAiService, AnthropicAiService>();
 builder.Services.AddScoped<RuleBasedRecommendationService>();
 builder.Services.AddScoped<IRecommendationService, AiRecommendationService>();
+builder.Services.AddScoped<AiSummaryService>();
 builder.Services.AddSignalR();
 
 builder.Services.AddCors(options =>

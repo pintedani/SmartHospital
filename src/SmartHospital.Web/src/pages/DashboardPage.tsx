@@ -5,7 +5,7 @@ import {
   TableContainer, TableHead, TableRow, CircularProgress, Dialog, DialogTitle,
   DialogContent, DialogActions, Divider, IconButton,
 } from '@mui/material';
-import { Warning, TrendingUp, People, Feedback, Visibility } from '@mui/icons-material';
+import { Warning, TrendingUp, People, Feedback, Visibility, AutoAwesome, Refresh } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +41,27 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [feedbackDialog, setFeedbackDialog] = useState<any>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState<any>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiHistory, setAiHistory] = useState<any[]>([]);
+
+  const regenerateAiSummary = async () => {
+    if (selectedHospital === null) return;
+    setAiSummaryLoading(true);
+    try {
+      const res = await api.post(`/ai/summary/${selectedHospital}/regenerate`);
+      if (res.data.available) {
+        setAiSummary(res.data);
+        api.get(`/ai/summary-history/${selectedHospital}`).then(r => setAiHistory(r.data)).catch(() => {});
+      } else {
+        setAiSummary(null);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.get('/hospitals').then(res => {
@@ -66,6 +87,20 @@ export default function DashboardPage() {
       setAlerts(al.data);
       setLoading(false);
     });
+
+    // Fetch AI summary
+    setAiSummaryLoading(true);
+    api.get(`/ai/summary/${selectedHospital}`).then(res => {
+      if (res.data.available) {
+        setAiSummary(res.data);
+        console.log('%c[AI] Summary loaded', 'color: #7c3aed; font-weight: bold', res.data);
+      } else {
+        setAiSummary(null);
+      }
+    }).catch(() => setAiSummary(null)).finally(() => setAiSummaryLoading(false));
+
+    // Fetch AI history
+    api.get(`/ai/summary-history/${selectedHospital}`).then(res => setAiHistory(res.data)).catch(() => {});
   }, [selectedHospital]);
 
   const reviewAlert = async (alertId: number) => {
@@ -77,8 +112,14 @@ export default function DashboardPage() {
     setFeedbackLoading(true);
     setFeedbackDialog(null);
     try {
-      const res = await api.get(`/analytics/alerts/${alertId}/feedback`);
-      setFeedbackDialog(res.data);
+      const [fbRes, aiRes] = await Promise.all([
+        api.get(`/analytics/alerts/${alertId}/feedback`),
+        api.get(`/ai/alert-analysis/${alertId}`).catch(() => ({ data: { available: false } })),
+      ]);
+      setFeedbackDialog({ ...fbRes.data, aiAnalysis: aiRes.data.available ? aiRes.data : null });
+      if (aiRes.data.available) {
+        console.log('%c[AI] Alert analysis loaded', 'color: #7c3aed; font-weight: bold', aiRes.data);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -189,6 +230,216 @@ export default function DashboardPage() {
             </Card>
           )}
 
+          {/* AI Summary Card */}
+          <Card sx={{ p: 3, mb: 4, border: '1px solid', borderColor: 'primary.light', background: 'linear-gradient(135deg, rgba(124,58,237,0.03) 0%, rgba(37,99,235,0.03) 100%)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <AutoAwesome sx={{ color: '#7c3aed' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {i18n.language === 'ro' ? 'Sumar AI - Feedback Luna Curentă' : 'AI Summary - Current Month Feedback'}
+              </Typography>
+              {aiSummaryLoading && <CircularProgress size={18} sx={{ ml: 1 }} />}
+              <Box sx={{ ml: 'auto' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  disabled={aiSummaryLoading}
+                  onClick={regenerateAiSummary}
+                  sx={{ borderColor: '#7c3aed', color: '#7c3aed', '&:hover': { borderColor: '#5b21b6', bgcolor: 'rgba(124,58,237,0.05)' } }}
+                >
+                  {i18n.language === 'ro' ? 'Regenerează' : 'Regenerate'}
+                </Button>
+              </Box>
+            </Box>
+            {aiSummary ? (
+              <Box>
+                {/* Sentiment & metadata badges */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  return meta ? (
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                      {meta.sentiment && (
+                        <Chip size="small"
+                          color={meta.sentiment === 'positive' ? 'success' : meta.sentiment === 'negative' ? 'error' : 'warning'}
+                          label={`Sentiment: ${meta.sentiment}`} />
+                      )}
+                      {meta.severity && (
+                        <Chip size="small"
+                          color={meta.severity === 'critical' ? 'error' : meta.severity === 'high' ? 'error' : meta.severity === 'medium' ? 'warning' : 'default'}
+                          label={`Severitate: ${meta.severity}`} />
+                      )}
+                    </Box>
+                  ) : null;
+                })()}
+
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+                  {i18n.language === 'ro' ? aiSummary.contentRO : aiSummary.contentEN}
+                </Typography>
+
+                {/* Key Issues */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  return meta?.keyIssues?.length > 0 ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                        {i18n.language === 'ro' ? '⚠️ Probleme cheie:' : '⚠️ Key Issues:'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {meta.keyIssues.map((issue: string, idx: number) => (
+                          <Chip key={idx} size="small" variant="outlined" color="warning" label={issue} />
+                        ))}
+                      </Box>
+                    </Box>
+                  ) : null;
+                })()}
+
+                {/* Corruption Alerts */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  return meta?.corruptionAlerts && meta.corruptionAlerts !== 'Niciun caz identificat' && meta.corruptionAlerts !== 'No cases identified' ? (
+                    <Box sx={{ mb: 2, p: 1.5, bgcolor: 'error.50', borderRadius: 1, border: '1px solid', borderColor: 'error.light' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'error.main' }}>
+                        {i18n.language === 'ro' ? '🚨 Alerte integritate:' : '🚨 Integrity Alerts:'}
+                      </Typography>
+                      <Typography variant="body2">
+                        {meta.corruptionAlerts}
+                      </Typography>
+                    </Box>
+                  ) : null;
+                })()}
+
+                {/* Action Items */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  return meta?.actionItems?.length > 0 ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                        {i18n.language === 'ro' ? '📋 Acțiuni recomandate:' : '📋 Recommended Actions:'}
+                      </Typography>
+                      {meta.actionItems.map((item: string, idx: number) => (
+                        <Typography key={idx} variant="body2" sx={{ pl: 1, mb: 0.3 }}>• {item}</Typography>
+                      ))}
+                    </Box>
+                  ) : null;
+                })()}
+
+                {/* Department Issues */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  return meta?.departmentIssues?.length > 0 ? (
+                    <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(25,118,210,0.04)', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {i18n.language === 'ro' ? '🏥 Probleme identificate pe secții:' : '🏥 Issues by Department:'}
+                      </Typography>
+                      {meta.departmentIssues.map((dept: any, idx: number) => (
+                        <Box key={idx} sx={{ mb: 1, pl: 1, borderLeft: '3px solid', borderColor: dept.rating && dept.rating < 2 ? 'error.main' : dept.rating && dept.rating < 3 ? 'warning.main' : 'success.main' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {dept.department}
+                            </Typography>
+                            {dept.rating && (
+                              <Chip size="small" variant="outlined"
+                                color={dept.rating < 2 ? 'error' : dept.rating < 3 ? 'warning' : 'success'}
+                                label={`${Number(dept.rating).toFixed(1)}/4`} />
+                            )}
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">
+                            {i18n.language === 'ro' ? dept.issueRO : dept.issueEN}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : null;
+                })()}
+
+                {/* AI Interpretation Details */}
+                {(() => {
+                  const meta = aiSummary.metadataJson ? JSON.parse(aiSummary.metadataJson) : null;
+                  if (!meta) return null;
+                  return (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(124,58,237,0.04)', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {i18n.language === 'ro' ? '🔍 Detalii interpretare AI:' : '🔍 AI Interpretation Details:'}
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {i18n.language === 'ro' ? 'Sentiment general' : 'Overall Sentiment'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {meta.sentiment === 'positive' ? (i18n.language === 'ro' ? '😊 Pozitiv' : '😊 Positive') :
+                             meta.sentiment === 'negative' ? (i18n.language === 'ro' ? '😞 Negativ' : '😞 Negative') :
+                             (i18n.language === 'ro' ? '😐 Mixt' : '😐 Mixed')}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {i18n.language === 'ro' ? 'Feedback-uri analizate' : 'Feedback Analyzed'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {aiSummary.feedbackCount}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {i18n.language === 'ro' ? 'Probleme identificate' : 'Issues Identified'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {meta.keyIssues?.length || 0}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                      {meta.corruptionAlerts && meta.corruptionAlerts !== 'Niciun caz identificat' && meta.corruptionAlerts !== 'No cases identified' && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {i18n.language === 'ro' ? 'Cazuri integritate' : 'Integrity Cases'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                            {i18n.language === 'ro' ? 'Da - vezi alertele de mai sus' : 'Yes - see alerts above'}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })()}
+
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Chip size="small" variant="outlined" label={`${aiSummary.feedbackCount} feedback-uri analizate`} />
+                  <Chip size="small" variant="outlined" label={`Generat: ${new Date(aiSummary.generatedAt).toLocaleString()}`} />
+                  {aiSummary.generatedBy && <Chip size="small" variant="outlined" label={`De: ${aiSummary.generatedBy}`} />}
+                </Box>
+              </Box>
+            ) : !aiSummaryLoading ? (
+              <Typography variant="body2" color="text.secondary">
+                {i18n.language === 'ro' ? 'AI-ul nu este activat sau nu există feedback suficient.' : 'AI is not enabled or insufficient feedback.'}
+              </Typography>
+            ) : null}
+
+            {/* AI History */}
+            {aiHistory.length > 1 && (
+              <Box sx={{ mt: 3 }}>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  {i18n.language === 'ro' ? 'Istoric Sumarizări AI' : 'AI Summary History'}
+                </Typography>
+                {aiHistory.slice(1, 6).map((h: any) => (
+                  <Box key={h.id} sx={{ mb: 1, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(h.generatedAt).toLocaleString()} — {h.summaryType === 'alert_analysis' ? '🚨 Analiză alertă' : '📊 Sumar lunar'}
+                        {h.generatedBy && ` (${h.generatedBy})`}
+                      </Typography>
+                      <Chip size="small" label={`${h.feedbackCount} fb`} variant="outlined" />
+                    </Box>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      {(i18n.language === 'ro' ? h.contentRO : h.contentEN)?.substring(0, 150)}...
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Card>
+
           {/* Abuse Alerts */}
           <Card sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom color="error">{t('dashboard.alerts')}</Typography>
@@ -249,6 +500,45 @@ export default function DashboardPage() {
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
               ) : feedbackDialog && (
                 <Box>
+                  {/* AI Analysis */}
+                  {feedbackDialog.aiAnalysis && (
+                    <Box sx={{ mb: 3, p: 2, borderRadius: 1, border: '1px solid', borderColor: 'primary.light', background: 'linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(37,99,235,0.05) 100%)' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <AutoAwesome sx={{ color: '#7c3aed', fontSize: 18 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {i18n.language === 'ro' ? 'Analiză AI' : 'AI Analysis'}
+                        </Typography>
+                        {(() => {
+                          const meta = feedbackDialog.aiAnalysis.metadataJson ? JSON.parse(feedbackDialog.aiAnalysis.metadataJson) : null;
+                          return meta?.severity ? (
+                            <Chip size="small"
+                              color={meta.severity === 'critical' || meta.severity === 'high' ? 'error' : meta.severity === 'medium' ? 'warning' : 'default'}
+                              label={meta.severity.toUpperCase()} sx={{ ml: 'auto' }} />
+                          ) : null;
+                        })()}
+                      </Box>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+                        {i18n.language === 'ro' ? feedbackDialog.aiAnalysis.contentRO : feedbackDialog.aiAnalysis.contentEN}
+                      </Typography>
+                      {(() => {
+                        const meta = feedbackDialog.aiAnalysis.metadataJson ? JSON.parse(feedbackDialog.aiAnalysis.metadataJson) : null;
+                        return meta?.actionItems?.length > 0 ? (
+                          <Box sx={{ mt: 1.5, p: 1.5, bgcolor: 'rgba(124,58,237,0.05)', borderRadius: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                              {i18n.language === 'ro' ? 'Acțiuni recomandate:' : 'Recommended actions:'}
+                            </Typography>
+                            {meta.actionItems.map((item: string, idx: number) => (
+                              <Typography key={idx} variant="body2" sx={{ pl: 1 }}>• {item}</Typography>
+                            ))}
+                          </Box>
+                        ) : null;
+                      })()}
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        {i18n.language === 'ro' ? 'Generat' : 'Generated'}: {new Date(feedbackDialog.aiAnalysis.generatedAt).toLocaleString()}
+                      </Typography>
+                    </Box>
+                  )}
+
                   {/* Patient Info */}
                   <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                     <Typography variant="subtitle2" gutterBottom>

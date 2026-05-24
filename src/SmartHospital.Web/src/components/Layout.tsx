@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, IconButton, Box, Drawer,
   List, ListItem, ListItemButton, ListItemIcon, ListItemText,
@@ -22,6 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [langAnchor, setLangAnchor] = useState<null | HTMLElement>(null);
   const [userAnchor, setUserAnchor] = useState<null | HTMLElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isAdmin = user?.role === 'Admin';
   const isManager = user?.role === 'Manager';
@@ -32,10 +33,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: t('nav.symptoms'), path: '/symptoms', icon: <MedicalInformation /> },
     { label: t('nav.reservationStatus'), path: '/reservation-status', icon: <SearchIcon /> },
     { label: t('nav.map'), path: '/map', icon: <Map /> },
-    ...(isAuthenticated ? [
-      { label: t('nav.reservations'), path: '/reservations', icon: <EventNote /> },
-      { label: i18n.language === 'ro' ? 'Review-urile mele' : 'My Reviews', path: '/my-reviews', icon: <RateReview /> },
-    ] : []),
     ...(isStaff ? [
       { label: t('nav.dashboard'), path: '/dashboard', icon: <Dashboard /> },
       { label: t('nav.admin'), path: '/admin', icon: <AdminPanelSettings /> },
@@ -107,6 +104,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {user?.role === 'Admin' ? '🛡️ Administrator' : user?.role === 'Manager' ? '🏥 Manager' : '👤 Pacient'}
                   </Typography>
                 </Box>
+                <Divider />
+                <MenuItem onClick={() => { setUserAnchor(null); navigate('/reservations'); }}>
+                  <ListItemIcon><EventNote fontSize="small" /></ListItemIcon>
+                  {i18n.language === 'ro' ? 'Programările mele' : 'My Reservations'}
+                </MenuItem>
+                <MenuItem onClick={() => { setUserAnchor(null); navigate('/my-reviews'); }}>
+                  <ListItemIcon><RateReview fontSize="small" /></ListItemIcon>
+                  {i18n.language === 'ro' ? 'Review-urile mele' : 'My Reviews'}
+                </MenuItem>
                 <Divider />
                 <MenuItem onClick={() => { setUserAnchor(null); logout(); }}>
                   <ListItemIcon><Logout fontSize="small" /></ListItemIcon>

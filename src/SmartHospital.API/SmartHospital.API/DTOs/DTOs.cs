@@ -62,7 +62,8 @@ public record QuestionDto(
 // === Feedback DTOs ===
 public record FeedbackSubmitDto(
     int HospitalId, int? DepartmentId, PatientGender? PatientGender,
-    int? PatientAge, FilledByType FilledBy, List<FeedbackAnswerDto> Answers
+    int? PatientAge, FilledByType FilledBy, List<FeedbackAnswerDto> Answers,
+    bool IsAnonymous = true
 );
 
 public record FeedbackAnswerDto(
