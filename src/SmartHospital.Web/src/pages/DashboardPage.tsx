@@ -5,7 +5,7 @@ import {
   TableContainer, TableHead, TableRow, CircularProgress, Dialog, DialogTitle,
   DialogContent, DialogActions, Divider, IconButton, Pagination,
 } from '@mui/material';
-import { Warning, TrendingUp, People, Feedback, Visibility, AutoAwesome, Refresh } from '@mui/icons-material';
+import { Warning, TrendingUp, TrendingDown, People, Feedback, Visibility, AutoAwesome, Refresh, Gavel, ArrowUpward } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,6 +49,21 @@ export default function DashboardPage() {
   const [feedbacksTotalPages, setFeedbacksTotalPages] = useState(1);
   const [feedbacksTotal, setFeedbacksTotal] = useState(0);
   const [feedbacksLoading, setFeedbacksLoading] = useState(false);
+  const [trends, setTrends] = useState<any>(null);
+  const [accountability, setAccountability] = useState<any>(null);
+
+  const updateAlertStatus = async (alertId: number, status: string, notes?: string) => {
+    await api.put(`/analytics/alerts/${alertId}/status`, { status, notes });
+    // Refresh alerts
+    const res = await api.get(`/analytics/alerts/${selectedHospital}`);
+    setAlerts(res.data);
+  };
+
+  const escalateAlert = async (alertId: number) => {
+    await api.put(`/analytics/alerts/${alertId}/escalate`);
+    const res = await api.get(`/analytics/alerts/${selectedHospital}`);
+    setAlerts(res.data);
+  };
 
   const regenerateAiSummary = async () => {
     if (selectedHospital === null) return;
@@ -107,6 +122,10 @@ export default function DashboardPage() {
     // Fetch AI history
     api.get(`/ai/summary-history/${selectedHospital}`).then(res => setAiHistory(res.data)).catch(() => {});
 
+    // Fetch trends & accountability
+    api.get(`/analytics/trends/${selectedHospital}`).then(res => setTrends(res.data)).catch(() => setTrends(null));
+    api.get(`/analytics/accountability/${selectedHospital}`).then(res => setAccountability(res.data)).catch(() => setAccountability(null));
+
     // Fetch feedbacks (reset to page 1)
     setFeedbacksPage(1);
   }, [selectedHospital]);
@@ -124,10 +143,7 @@ export default function DashboardPage() {
       .finally(() => setFeedbacksLoading(false));
   }, [selectedHospital, feedbacksPage]);
 
-  const reviewAlert = async (alertId: number) => {
-    await api.put(`/analytics/alerts/${alertId}/review`, { notes: 'Reviewed by manager' });
-    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isReviewed: true } : a));
-  };
+
 
   const viewAlertFeedback = async (alertId: number) => {
     setFeedbackLoading(true);
@@ -337,8 +353,8 @@ export default function DashboardPage() {
                       <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
                         {i18n.language === 'ro' ? '📋 Acțiuni recomandate:' : '📋 Recommended Actions:'}
                       </Typography>
-                      {meta.actionItems.map((item: string, idx: number) => (
-                        <Typography key={idx} variant="body2" sx={{ pl: 1, mb: 0.3 }}>• {item}</Typography>
+                      {meta.actionItems.map((item: any, idx: number) => (
+                        <Typography key={idx} variant="body2" sx={{ pl: 1, mb: 0.3 }}>• {typeof item === 'string' ? item : item.action}{item.priority ? ` [${item.priority}]` : ''}</Typography>
                       ))}
                     </Box>
                   ) : null;
@@ -522,9 +538,132 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* Abuse Alerts */}
+          {/* Trend Detection */}
+          {trends && trends.trends?.length > 0 && (
+            <Card sx={{ p: 3, mb: 4, border: '1px solid', borderColor: 'warning.light' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <TrendingDown color="warning" />
+                <Typography variant="h6">
+                  {i18n.language === 'ro' ? 'Tendințe săptămânale' : 'Weekly Trends'}
+                </Typography>
+                <Chip size="small" label={`${trends.trends.length} ${i18n.language === 'ro' ? 'schimbări semnificative' : 'significant changes'}`} />
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                <Chip size="small" variant="outlined" label={`${i18n.language === 'ro' ? 'Săpt. curentă' : 'This week'}: ${trends.thisWeekFeedbackCount} fb`} />
+                <Chip size="small" variant="outlined" label={`${i18n.language === 'ro' ? 'Săpt. trecută' : 'Last week'}: ${trends.lastWeekFeedbackCount} fb`} />
+              </Box>
+              {trends.trends.map((trend: any, idx: number) => (
+                <Box key={idx} sx={{
+                  mb: 1.5, p: 1.5, borderRadius: 1, border: '1px solid',
+                  borderColor: trend.severity === 'high' ? 'error.main' : trend.severity === 'medium' ? 'warning.main' : 'divider',
+                  bgcolor: trend.direction === 'down' ? 'error.50' : 'success.50',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {trend.direction === 'down' ? <TrendingDown color="error" fontSize="small" /> : <TrendingUp color="success" fontSize="small" />}
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {trend.departmentName} — {trend.category}
+                    </Typography>
+                    <Chip size="small"
+                      color={trend.direction === 'down' ? 'error' : 'success'}
+                      label={`${trend.changePercent > 0 ? '+' : ''}${trend.changePercent}%`} />
+                    <Chip size="small" variant="outlined"
+                      color={trend.severity === 'high' ? 'error' : trend.severity === 'medium' ? 'warning' : 'default'}
+                      label={trend.severity} sx={{ ml: 'auto' }} />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    {trend.lastWeekScore.toFixed(2)} → {trend.thisWeekScore.toFixed(2)}
+                  </Typography>
+                </Box>
+              ))}
+            </Card>
+          )}
+
+          {/* Accountability Metrics */}
+          {accountability && (
+            <Card sx={{ p: 3, mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Gavel color="primary" />
+                <Typography variant="h6">
+                  {i18n.language === 'ro' ? 'Metrici de responsabilitate' : 'Accountability Metrics'}
+                </Typography>
+              </Box>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color="primary">{accountability.resolutionRate}%</Typography>
+                    <Typography variant="caption">{i18n.language === 'ro' ? 'Rată rezolvare' : 'Resolution Rate'}</Typography>
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color={accountability.avgResponseTimeHours > 48 ? 'error' : 'success'}>
+                      {accountability.avgResponseTimeHours < 1 ? '<1h' : `${accountability.avgResponseTimeHours}h`}
+                    </Typography>
+                    <Typography variant="caption">{i18n.language === 'ro' ? 'Timp mediu răspuns' : 'Avg Response Time'}</Typography>
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: accountability.overdueAlerts > 0 ? 'error.50' : 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color={accountability.overdueAlerts > 0 ? 'error' : 'success'}>
+                      {accountability.overdueAlerts}
+                    </Typography>
+                    <Typography variant="caption">{i18n.language === 'ro' ? 'Depășite (>48h)' : 'Overdue (>48h)'}</Typography>
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: accountability.recurrentIssues?.length > 0 ? 'warning.50' : 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h5" color={accountability.recurrentIssues?.length > 0 ? 'warning' : 'success'}>
+                      {accountability.recurrentIssues?.length || 0}
+                    </Typography>
+                    <Typography variant="caption">{i18n.language === 'ro' ? 'Probleme recurente' : 'Recurrent Issues'}</Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+              {accountability.alertsByDepartment?.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    {i18n.language === 'ro' ? 'Alerte pe secții' : 'Alerts by Department'}
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>{i18n.language === 'ro' ? 'Secție' : 'Department'}</TableCell>
+                          <TableCell align="center">Total</TableCell>
+                          <TableCell align="center">{i18n.language === 'ro' ? 'Deschise' : 'Open'}</TableCell>
+                          <TableCell align="center">{i18n.language === 'ro' ? 'Rezolvate' : 'Resolved'}</TableCell>
+                          <TableCell align="center">{i18n.language === 'ro' ? 'Timp răspuns' : 'Response Time'}</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {accountability.alertsByDepartment.map((dept: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell>{dept.department}</TableCell>
+                            <TableCell align="center">{dept.total}</TableCell>
+                            <TableCell align="center">
+                              <Chip size="small" color={dept.open > 0 ? 'error' : 'default'} label={dept.open} />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip size="small" color="success" variant="outlined" label={dept.resolved} />
+                            </TableCell>
+                            <TableCell align="center">
+                              {dept.avgResponseHours > 0 ? `${dept.avgResponseHours.toFixed(1)}h` : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+            </Card>
+          )}
+
+          {/* Abuse Alerts - Case Management */}
           <Card sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom color="error">{t('dashboard.alerts')}</Typography>
+            <Typography variant="h6" gutterBottom color="error">
+              {i18n.language === 'ro' ? 'Cazuri de integritate' : 'Integrity Cases'}
+            </Typography>
             {alerts.length === 0 ? (
               <Typography color="text.secondary">{t('dashboard.noAlerts')}</Typography>
             ) : (
@@ -532,34 +671,64 @@ export default function DashboardPage() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Department</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Action</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Cod' : 'Code'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Data' : 'Date'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Secție' : 'Dept'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Tip' : 'Type'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Status' : 'Status'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Nivel' : 'Level'}</TableCell>
+                      <TableCell>{i18n.language === 'ro' ? 'Acțiuni' : 'Actions'}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {alerts.map(alert => (
-                      <TableRow key={alert.id} sx={{ bgcolor: alert.isReviewed ? undefined : 'error.50', cursor: 'pointer' }}
+                    {alerts.map((alert: any) => (
+                      <TableRow key={alert.id}
+                        sx={{ bgcolor: alert.status === 'Open' ? 'error.50' : alert.status === 'Acknowledged' ? 'warning.50' : undefined, cursor: 'pointer' }}
                         onClick={() => viewAlertFeedback(alert.id)} hover>
-                        <TableCell>{new Date(alert.createdAt).toLocaleDateString()}</TableCell>
-                        <TableCell>{alert.departmentName || 'N/A'}</TableCell>
-                        <TableCell>{alert.alertType}</TableCell>
                         <TableCell>
-                          <Chip size="small"
-                            label={alert.isReviewed ? t('dashboard.reviewed') : t('dashboard.pending')}
-                            color={alert.isReviewed ? 'success' : 'error'} />
+                          <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                            {alert.trackingCode || `#${alert.id}`}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{new Date(alert.createdAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{alert.departmentName || '—'}</TableCell>
+                        <TableCell>
+                          <Chip size="small" variant="outlined"
+                            color={alert.alertType === 'MoneyRequested' ? 'error' : 'warning'}
+                            label={alert.alertType} />
                         </TableCell>
                         <TableCell>
-                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); viewAlertFeedback(alert.id); }}>
-                            <Visibility fontSize="small" />
-                          </IconButton>
-                          {!alert.isReviewed && (
-                            <Button size="small" onClick={(e) => { e.stopPropagation(); reviewAlert(alert.id); }}>
-                              {t('dashboard.markReviewed')}
-                            </Button>
-                          )}
+                          <Chip size="small"
+                            color={alert.status === 'Open' ? 'error' : alert.status === 'Resolved' || alert.status === 'Closed' ? 'success' : 'warning'}
+                            label={alert.status} />
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" variant="outlined"
+                            label={alert.escalationLevel?.replace('Level1_', 'L1: ').replace('Level2_', 'L2: ').replace('Level3_', 'L3: ')} />
+                        </TableCell>
+                        <TableCell onClick={e => e.stopPropagation()}>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <IconButton size="small" onClick={() => viewAlertFeedback(alert.id)} title="View">
+                              <Visibility fontSize="small" />
+                            </IconButton>
+                            {alert.status === 'Open' && (
+                              <Button size="small" variant="outlined" color="warning"
+                                onClick={() => updateAlertStatus(alert.id, 'Acknowledged')}>
+                                {i18n.language === 'ro' ? 'Confirmă' : 'Ack'}
+                              </Button>
+                            )}
+                            {(alert.status === 'Acknowledged' || alert.status === 'Investigating') && (
+                              <Button size="small" variant="outlined" color="success"
+                                onClick={() => updateAlertStatus(alert.id, 'Resolved', 'Resolved by manager')}>
+                                {i18n.language === 'ro' ? 'Rezolvă' : 'Resolve'}
+                              </Button>
+                            )}
+                            {alert.status !== 'Resolved' && alert.status !== 'Closed' && (
+                              <IconButton size="small" color="error" onClick={() => escalateAlert(alert.id)} title="Escalate">
+                                <ArrowUpward fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -609,8 +778,8 @@ export default function DashboardPage() {
                             <Typography variant="caption" sx={{ fontWeight: 600 }}>
                               {i18n.language === 'ro' ? 'Acțiuni recomandate:' : 'Recommended actions:'}
                             </Typography>
-                            {meta.actionItems.map((item: string, idx: number) => (
-                              <Typography key={idx} variant="body2" sx={{ pl: 1 }}>• {item}</Typography>
+                            {meta.actionItems.map((item: any, idx: number) => (
+                              <Typography key={idx} variant="body2" sx={{ pl: 1 }}>• {typeof item === 'string' ? item : item.action}</Typography>
                             ))}
                           </Box>
                         ) : null;

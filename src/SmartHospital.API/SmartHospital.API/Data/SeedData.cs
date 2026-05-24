@@ -733,10 +733,41 @@ public static class SeedData
         var smileyOptions = new[] { "Foarte multumit", "Multumit", "Nemultumit", "Foarte nemultumit" };
         var ratingOptions = new[] { "Foarte bun", "Bun", "Nesatisfacator" };
 
-        foreach (var hospital in hospitals)
+        for (int hIdx = 0; hIdx < hospitals.Count; hIdx++)
         {
+            var hospital = hospitals[hIdx];
             var departments = context.Departments.Where(d => d.HospitalId == hospital.Id).ToList();
-            int feedbackCount = rng.Next(30, 80);
+
+            // Hospital profile: 0 = very good (first), 1 = very bad (second), else = average
+            int profile = hIdx == 0 ? 0 : (hIdx == 1 ? 1 : 2);
+
+            // Weight configs per profile: [veryGood, good, bad, veryBad] for smiley
+            int[] smileyWeights = profile switch
+            {
+                0 => new[] { 65, 25, 8, 2 },   // Very good hospital
+                1 => new[] { 5, 15, 40, 40 },   // Very bad hospital
+                _ => new[] { 30, 35, 25, 10 },  // Average
+            };
+            // [veryGood, good, unsatisfactory] for ratings
+            int[] ratingWeights = profile switch
+            {
+                0 => new[] { 70, 25, 5 },
+                1 => new[] { 8, 22, 70 },
+                _ => new[] { 30, 40, 30 },
+            };
+            // Yes percentage for YesNo questions
+            int yesPercent = profile switch { 0 => 95, 1 => 35, _ => 65 };
+            // Corruption percentage
+            int corruptionPercent = profile switch { 0 => 2, 1 => 40, _ => 12 };
+            // [yes, partial, no] for YesPartialNo
+            int[] partialWeights = profile switch
+            {
+                0 => new[] { 80, 15, 5 },
+                1 => new[] { 10, 25, 65 },
+                _ => new[] { 45, 35, 20 },
+            };
+
+            int feedbackCount = profile switch { 0 => 70, 1 => 65, _ => rng.Next(30, 60) };
 
             for (int i = 0; i < feedbackCount; i++)
             {
@@ -761,31 +792,31 @@ public static class SeedData
                     switch (q.Type)
                     {
                         case QuestionType.Smiley:
-                            var sIdx = WeightedRandom(rng, new[] { 40, 35, 18, 7 });
+                            var sIdx = WeightedRandom(rng, smileyWeights);
                             answer.SelectedOption = smileyOptions[sIdx];
                             answer.RatingValue = 4 - sIdx;
                             break;
                         case QuestionType.Rating:
-                            var rIdx = WeightedRandom(rng, new[] { 45, 40, 15 });
+                            var rIdx = WeightedRandom(rng, ratingWeights);
                             answer.SelectedOption = ratingOptions[rIdx];
                             answer.RatingValue = 3 - rIdx;
                             break;
                         case QuestionType.YesNo:
                             if (q.IsCorruptionAlert)
                             {
-                                bool corrupt = rng.Next(100) < 15;
+                                bool corrupt = rng.Next(100) < corruptionPercent;
                                 answer.SelectedOption = corrupt ? "Da" : "Nu";
                                 answer.RatingValue = corrupt ? 0 : 1;
                             }
                             else
                             {
-                                bool yes = rng.Next(100) < 80;
+                                bool yes = rng.Next(100) < yesPercent;
                                 answer.SelectedOption = yes ? "Da" : "Nu";
                                 answer.RatingValue = yes ? 1 : 0;
                             }
                             break;
                         case QuestionType.YesPartialNo:
-                            var pIdx = WeightedRandom(rng, new[] { 60, 30, 10 });
+                            var pIdx = WeightedRandom(rng, partialWeights);
                             answer.SelectedOption = new[] { "Da, intotdeauna", "Da, partial", "Nu, niciodata" }[pIdx];
                             answer.RatingValue = 2 - pIdx;
                             break;
@@ -798,7 +829,7 @@ public static class SeedData
                             break;
                         case QuestionType.FreeText:
                             if (rng.Next(100) < 30)
-                                answer.TextValue = GetRandomComment(rng);
+                                answer.TextValue = GetRandomComment(rng, profile);
                             break;
                     }
 
@@ -848,27 +879,65 @@ public static class SeedData
         return weights.Length - 1;
     }
 
-    private static string GetRandomComment(Random rng)
+    private static string GetRandomComment(Random rng, int profile)
     {
-        var comments = new[]
+        var positiveComments = new[]
         {
             "Personal foarte amabil si profesionist.",
-            "Curatenia ar putea fi imbunatatita.",
-            "Mancarea a fost buna.",
-            "Timpii de asteptare au fost prea lungi.",
-            "Medicul a fost foarte atent si m-a explicat totul.",
-            "Conditiile de cazare sunt satisfacatoare.",
-            "Am fost tratata cu respect si profesionalism.",
-            "Ar fi nevoie de mai mult personal pe tura de noapte.",
-            "Echipamentele medicale sunt moderne.",
+            "Medicul a fost foarte atent si m-a explicat totul in detaliu.",
+            "Am fost tratata cu respect si profesionalism exemplar.",
+            "Echipamentele medicale sunt moderne si de ultima generatie.",
             "Comunicarea cu personalul a fost excelenta.",
-            "Parcarea la spital este insuficienta.",
-            "Recomand acest spital cu incredere.",
-            "S-ar putea imbunatati semnalizarea in spital.",
-            "Asistentele au fost foarte grijulii.",
-            "Temperatura in saloane a fost prea scazuta.",
+            "Recomand acest spital cu incredere oricui.",
+            "Asistentele au fost foarte grijulii si atente.",
+            "Cel mai bun spital in care am fost vreodata.",
+            "Conditii excelente, curatenie impecabila.",
+            "M-am simtit in siguranta si bine ingrijit tot timpul.",
+            "Multumesc echipei medicale pentru profesionalism!",
+            "Totul a decurs perfect, de la internare la externare.",
         };
-        return comments[rng.Next(comments.Length)];
+
+        var negativeComments = new[]
+        {
+            "Personal dezinteresat si nepoliticos.",
+            "Curatenia este dezastruoasa, conditii inacceptabile.",
+            "Timpii de asteptare au fost inacceptabil de lungi.",
+            "Mancarea a fost de calitate foarte proasta.",
+            "Medicul nu a avut rabdare sa imi explice nimic.",
+            "Conditiile de cazare sunt deplorabile.",
+            "Nu recomand acest spital nimanui.",
+            "Am fost tratat cu indiferenta si lipsa de respect.",
+            "Personalul de pe tura de noapte lipseste complet.",
+            "Am fost nevoit sa cumpar tot - de la medicamente la lenjerie.",
+            "O experienta traumatizanta, nu voi mai reveni niciodata.",
+            "Lipsa totala de empatie din partea personalului.",
+            "Mi s-au cerut bani pentru servicii care ar fi trebuit sa fie gratuite.",
+            "Infirmierele nu au raspuns la sonerie ore intregi.",
+        };
+
+        var averageComments = new[]
+        {
+            "Personal relativ amabil.",
+            "Curatenia ar putea fi imbunatatita.",
+            "Mancarea a fost acceptabila.",
+            "Timpii de asteptare au fost uneori lungi.",
+            "Medicul a fost destul de atent.",
+            "Conditiile de cazare sunt satisfacatoare.",
+            "Unele asistente au fost mai bune decat altele.",
+            "Ar fi nevoie de mai mult personal pe tura de noapte.",
+            "Comunicarea ar putea fi imbunatatita.",
+            "Parcarea la spital este insuficienta.",
+            "S-ar putea imbunatati semnalizarea in spital.",
+            "Experienta a fost mediocra, nici buna nici rea.",
+            "Unele aspecte au fost bune, altele mai putin.",
+        };
+
+        return profile switch
+        {
+            0 => positiveComments[rng.Next(positiveComments.Length)],
+            1 => negativeComments[rng.Next(negativeComments.Length)],
+            _ => averageComments[rng.Next(averageComments.Length)],
+        };
     }
 
     private static async Task SeedUsersAsync(UserManager<HospitalManager> userManager, AppDbContext context)

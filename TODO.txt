@@ -8,3 +8,7 @@
   Demo Credentials:
     Admin:   admin@smarthospital.ro / Admin123!
     Manager: manager.municipal@smarthospital.ro / Manager123!
+
+
+Manager Urgenta	manager.urgenta@smarthospital.ro	Manager123!	Spitalul Judetean de Urgenta	Foarte bun
+Manager Recuperare	manager.recuperare@smarthospital.ro	Manager123!	Spitalul de Recuperare	Foarte slab

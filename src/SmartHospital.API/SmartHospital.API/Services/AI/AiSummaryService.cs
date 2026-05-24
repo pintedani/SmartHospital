@@ -98,19 +98,28 @@ public class AiSummaryService
         }).ToList();
 
         var systemPrompt = @"Ești un analist AI pentru un sistem de feedback spitalicesc din România, județul Cluj.
-Analizează feedback-urile de mai jos și generează un sumar structurat.
-ACCENT SPECIAL pe cazurile unde pacienților li s-au solicitat bani (marcate cu ⚠️ BANI SOLICITAȚI).
-Include obligatoriu o analiză pe secții/departamente cu problemele identificate la fiecare.
+Analizează feedback-urile și generează un raport structurat bazat pe clasificarea problemelor și tendințe.
+
+ABORDARE:
+1. CLASIFICĂ fiecare problemă identificată pe categorii: Calitate servicii, Infrastructură, Integritate/Corupție, Comunicare, Timp așteptare, Neglijență, Drepturi pacient
+2. EVALUEAZĂ severitatea fiecărei probleme: low, medium, high, critical
+3. DETECTEAZĂ tendințe și recurență (aceleași probleme repetitive pe aceeași secție = RED FLAG)
+4. IDENTIFICĂ cazuri de integritate (bani solicitați, cadouri, comportament inadecvat)
+5. PROPUNE acțiuni concrete cu nivel de escalare (departament → management → extern)
 
 Răspunde STRICT în acest format JSON:
 {
-  ""summaryRO"": ""Sumar de 3-5 propoziții în română cu principalele constatări, accent pe probleme de integritate"",
-  ""summaryEN"": ""Same summary in English"",
+  ""summaryRO"": ""Sumar de 3-5 propoziții cu accent pe probleme identificate și tendințe, nu pe sentiment generic"",
+  ""summaryEN"": ""Same in English"",
+  ""issueClassification"": [
+    {""category"": ""Calitate servicii|Infrastructura|Integritate|Comunicare|Timp asteptare|Neglijenta|Drepturi pacient"", ""severity"": ""low|medium|high|critical"", ""department"": ""Nume"", ""descriptionRO"": ""..."", ""descriptionEN"": ""..."", ""isRecurrent"": false}
+  ],
   ""keyIssues"": [""Issue 1"", ""Issue 2""],
   ""corruptionAlerts"": ""Detalii specifice despre cazurile de solicitare bani (sau 'Niciun caz identificat')"",
-  ""sentiment"": ""positive|mixed|negative"",
-  ""actionItems"": [""Recommended action 1"", ""Recommended action 2""],
-  ""departmentIssues"": [{""department"": ""Nume secție"", ""issueRO"": ""Problemă identificată în română"", ""issueEN"": ""Issue identified in English"", ""rating"": 2.5}]
+  ""overallSeverity"": ""low|medium|high|critical"",
+  ""actionItems"": [{""action"": ""Acțiune concretă"", ""priority"": ""immediate|short-term|long-term"", ""escalationLevel"": ""department|management|external""}],
+  ""departmentIssues"": [{""department"": ""Nume secție"", ""issueRO"": ""Problemă"", ""issueEN"": ""Issue"", ""rating"": 2.5, ""trend"": ""improving|stable|declining""}],
+  ""accountabilityFlags"": [""Aspect care necesită urmărire""]
 }";
 
         var userMessage = $"Feedback-uri din ultimele 30 zile ({feedbacks.Count} total, {feedbacks.Count(f => f.AbuseAlerts.Any())} cu alerte de corupție):\n\n" +
@@ -125,11 +134,15 @@ Răspunde STRICT în acest format JSON:
 
             var metadata = JsonSerializer.Serialize(new
             {
-                sentiment = parsed.sentiment,
+                overallSeverity = parsed.overallSeverity,
+                issueClassification = parsed.issueClassification,
                 keyIssues = parsed.keyIssues,
                 actionItems = parsed.actionItems,
                 corruptionAlerts = parsed.corruptionAlerts,
                 departmentIssues = parsed.departmentIssues,
+                accountabilityFlags = parsed.accountabilityFlags,
+                // Keep backward compat
+                sentiment = parsed.overallSeverity == "low" ? "positive" : parsed.overallSeverity == "critical" ? "negative" : "mixed",
             });
 
             var summary = new AiSummary
@@ -149,11 +162,11 @@ Răspunde STRICT în acest format JSON:
             if (!string.IsNullOrEmpty(parsed.corruptionAlerts))
                 summary.ContentRO += $"\n\n🚨 Alerte integritate: {parsed.corruptionAlerts}";
             if (parsed.actionItems.Any())
-                summary.ContentRO += $"\n\n📋 Recomandări: {string.Join("; ", parsed.actionItems)}";
+                summary.ContentRO += $"\n\n📋 Recomandări: {string.Join("; ", parsed.actionItems.Select(a => a.TryGetProperty("action", out var act) ? act.GetString() : a.ToString()))}";
             if (!string.IsNullOrEmpty(parsed.corruptionAlerts))
                 summary.ContentEN += $"\n\n🚨 Integrity alerts: {parsed.corruptionAlerts}";
             if (parsed.actionItems.Any())
-                summary.ContentEN += $"\n\n📋 Recommendations: {string.Join("; ", parsed.actionItems)}";
+                summary.ContentEN += $"\n\n📋 Recommendations: {string.Join("; ", parsed.actionItems.Select(a => a.TryGetProperty("action", out var act) ? act.GetString() : a.ToString()))}";
 
             _db.AiSummaries.Add(summary);
             await _db.SaveChangesAsync();
@@ -230,8 +243,9 @@ Răspunde STRICT în JSON:
 
             var metadata = JsonSerializer.Serialize(new
             {
-                severity = parsed.severity,
+                severity = parsed.severity ?? parsed.overallSeverity,
                 actionItems = parsed.actionItems,
+                issueClassification = parsed.issueClassification,
             });
 
             var summary = new AiSummary
@@ -250,8 +264,9 @@ Răspunde STRICT în JSON:
 
             if (parsed.actionItems.Any())
             {
-                summary.ContentRO += $"\n\n📋 Recomandări: {string.Join("; ", parsed.actionItems)}";
-                summary.ContentEN += $"\n\n📋 Recommendations: {string.Join("; ", parsed.actionItems)}";
+                var actionTexts = parsed.actionItems.Select(a => a.TryGetProperty("action", out var act) ? act.GetString() : a.ToString()).ToList();
+                summary.ContentRO += $"\n\n📋 Recomandări: {string.Join("; ", actionTexts)}";
+                summary.ContentEN += $"\n\n📋 Recommendations: {string.Join("; ", actionTexts)}";
             }
 
             _db.AiSummaries.Add(summary);
@@ -277,7 +292,10 @@ Răspunde STRICT în JSON:
             .ToListAsync();
     }
 
-    private (string summaryRO, string summaryEN, string? corruptionAlerts, List<string> actionItems, string? sentiment, List<string> keyIssues, string? severity, List<Dictionary<string, object>> departmentIssues) ParseSummaryResponse(string response)
+    private (string summaryRO, string summaryEN, string? corruptionAlerts, List<JsonElement> actionItems,
+        string? overallSeverity, List<string> keyIssues, string? severity,
+        List<Dictionary<string, object>> departmentIssues,
+        List<JsonElement> issueClassification, List<string> accountabilityFlags) ParseSummaryResponse(string response)
     {
         try
         {
@@ -296,14 +314,21 @@ Răspunde STRICT în JSON:
             var summaryRO = root.TryGetProperty("summaryRO", out var sro) ? sro.GetString() ?? "" : "";
             var summaryEN = root.TryGetProperty("summaryEN", out var sen) ? sen.GetString() ?? "" : "";
             var corruption = root.TryGetProperty("corruptionAlerts", out var ca) ? ca.GetString() : null;
-            var actions = root.TryGetProperty("actionItems", out var ai)
-                ? ai.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
-                : new List<string>();
-            var sentiment = root.TryGetProperty("sentiment", out var st) ? st.GetString() : null;
+
+            // actionItems can be strings or objects
+            var actionItems = new List<JsonElement>();
+            if (root.TryGetProperty("actionItems", out var ai) && ai.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in ai.EnumerateArray())
+                    actionItems.Add(item.Clone());
+            }
+
+            var overallSeverity = root.TryGetProperty("overallSeverity", out var os) ? os.GetString() : null;
+            var severity = root.TryGetProperty("severity", out var sv) ? sv.GetString() : overallSeverity;
             var keyIssues = root.TryGetProperty("keyIssues", out var ki)
                 ? ki.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
                 : new List<string>();
-            var severity = root.TryGetProperty("severity", out var sv) ? sv.GetString() : null;
+
             var departmentIssues = new List<Dictionary<string, object>>();
             if (root.TryGetProperty("departmentIssues", out var di) && di.ValueKind == JsonValueKind.Array)
             {
@@ -314,16 +339,30 @@ Răspunde STRICT în JSON:
                     if (item.TryGetProperty("issueRO", out var iro)) dict["issueRO"] = iro.GetString() ?? "";
                     if (item.TryGetProperty("issueEN", out var ien)) dict["issueEN"] = ien.GetString() ?? "";
                     if (item.TryGetProperty("rating", out var rat)) dict["rating"] = rat.GetDouble();
+                    if (item.TryGetProperty("trend", out var tr)) dict["trend"] = tr.GetString() ?? "stable";
                     departmentIssues.Add(dict);
                 }
             }
 
-            return (summaryRO, summaryEN, corruption, actions, sentiment, keyIssues, severity, departmentIssues);
+            // Issue classification (new)
+            var issueClassification = new List<JsonElement>();
+            if (root.TryGetProperty("issueClassification", out var ic) && ic.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in ic.EnumerateArray())
+                    issueClassification.Add(item.Clone());
+            }
+
+            // Accountability flags
+            var accountabilityFlags = root.TryGetProperty("accountabilityFlags", out var af)
+                ? af.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
+                : new List<string>();
+
+            return (summaryRO, summaryEN, corruption, actionItems, overallSeverity, keyIssues, severity, departmentIssues, issueClassification, accountabilityFlags);
         }
         catch (JsonException ex)
         {
             _logger.LogWarning(ex, "[AI] Failed to parse summary JSON, using raw response");
-            return (response, response, null, new List<string>(), null, new List<string>(), null, new List<Dictionary<string, object>>());
+            return (response, response, null, new List<JsonElement>(), null, new List<string>(), null, new List<Dictionary<string, object>>(), new List<JsonElement>(), new List<string>());
         }
     }
 }

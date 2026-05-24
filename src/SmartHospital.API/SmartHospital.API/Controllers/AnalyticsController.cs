@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartHospital.API.Data;
 using SmartHospital.API.DTOs;
+using SmartHospital.API.Models;
 using SmartHospital.API.Services;
 
 namespace SmartHospital.API.Controllers;
@@ -195,7 +196,7 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("alerts/{hospitalId}")]
-    public async Task<ActionResult<List<AbuseAlertDto>>> GetAlerts(int hospitalId)
+    public async Task<ActionResult> GetAlerts(int hospitalId)
     {
         var alerts = await _db.AbuseAlerts
             .Where(a => hospitalId == 0 || a.HospitalId == hospitalId)
@@ -205,12 +206,96 @@ public class AnalyticsController : ControllerBase
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
 
-        return alerts.Select(a => new AbuseAlertDto(
-            a.Id, a.HospitalId, a.Hospital.Name,
-            a.DepartmentId, a.FeedbackSubmission.Department?.Name,
-            a.AlertType, a.CreatedAt, a.IsReviewed,
-            a.ReviewedBy, a.ReviewedAt, a.Notes
-        )).ToList();
+        return Ok(alerts.Select(a => new
+        {
+            a.Id, a.HospitalId,
+            HospitalName = a.Hospital.Name,
+            a.DepartmentId,
+            DepartmentName = a.FeedbackSubmission.Department?.Name,
+            AlertType = a.AlertType.ToString(),
+            Status = a.Status.ToString(),
+            EscalationLevel = a.EscalationLevel.ToString(),
+            a.TrackingCode,
+            a.CreatedAt, a.IsReviewed,
+            a.ReviewedBy, a.ReviewedAt,
+            a.AcknowledgedBy, a.AcknowledgedAt,
+            a.AssignedTo, a.ResolvedAt,
+            a.ResolutionNotes, a.Notes, a.EscalatedAt,
+        }).ToList());
+    }
+
+    [HttpPut("alerts/{id}/status")]
+    public async Task<IActionResult> UpdateAlertStatus(int id, [FromBody] AlertStatusUpdateDto dto)
+    {
+        var alert = await _db.AbuseAlerts.FindAsync(id);
+        if (alert == null) return NotFound();
+
+        var userName = User.Identity?.Name ?? "Unknown";
+
+        if (Enum.TryParse<AlertStatus>(dto.Status, out var newStatus))
+        {
+            alert.Status = newStatus;
+
+            switch (newStatus)
+            {
+                case AlertStatus.Acknowledged:
+                    alert.AcknowledgedBy = userName;
+                    alert.AcknowledgedAt = DateTime.UtcNow;
+                    break;
+                case AlertStatus.Resolved:
+                case AlertStatus.Closed:
+                    alert.IsReviewed = true;
+                    alert.ReviewedBy = userName;
+                    alert.ReviewedAt = DateTime.UtcNow;
+                    alert.ResolvedAt = DateTime.UtcNow;
+                    alert.ResolutionNotes = dto.Notes;
+                    break;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(dto.AssignedTo))
+            alert.AssignedTo = dto.AssignedTo;
+        if (!string.IsNullOrEmpty(dto.Notes))
+            alert.Notes = dto.Notes;
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("alerts/{id}/escalate")]
+    public async Task<IActionResult> EscalateAlert(int id)
+    {
+        var alert = await _db.AbuseAlerts.FindAsync(id);
+        if (alert == null) return NotFound();
+
+        if (alert.EscalationLevel < EscalationLevel.Level3_External)
+        {
+            alert.EscalationLevel++;
+            alert.EscalatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new { alert.EscalationLevel, alert.EscalatedAt });
+    }
+
+    [HttpGet("alerts/{id}/track/{trackingCode}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> TrackAlert(int id, string trackingCode)
+    {
+        var alert = await _db.AbuseAlerts
+            .Where(a => a.Id == id && a.TrackingCode == trackingCode)
+            .Select(a => new
+            {
+                a.Id, a.TrackingCode,
+                Status = a.Status.ToString(),
+                EscalationLevel = a.EscalationLevel.ToString(),
+                a.CreatedAt, a.AcknowledgedAt, a.ResolvedAt,
+                HasResolution = a.ResolutionNotes != null,
+            })
+            .FirstOrDefaultAsync();
+
+        if (alert == null) return NotFound(new { message = "Invalid tracking code" });
+        return Ok(alert);
     }
 
     [HttpPut("alerts/{id}/review")]
@@ -220,8 +305,11 @@ public class AnalyticsController : ControllerBase
         if (alert == null) return NotFound();
 
         alert.IsReviewed = true;
+        alert.Status = AlertStatus.Acknowledged;
         alert.ReviewedBy = User.Identity?.Name;
         alert.ReviewedAt = DateTime.UtcNow;
+        alert.AcknowledgedBy = User.Identity?.Name;
+        alert.AcknowledgedAt = DateTime.UtcNow;
         alert.Notes = dto.Notes;
 
         await _db.SaveChangesAsync();
@@ -396,5 +484,173 @@ public class AnalyticsController : ControllerBase
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
             return $"\"{value.Replace("\"", "\"\"")}\"";
         return value;
+    }
+
+    /// <summary>
+    /// Trend detection: week-over-week category scores per department.
+    /// Returns changes like "Cardiology cleanliness dropped 20% this week".
+    /// </summary>
+    [HttpGet("trends/{hospitalId}")]
+    public async Task<ActionResult> GetTrends(int hospitalId)
+    {
+        var now = DateTime.UtcNow;
+        var thisWeekStart = now.AddDays(-(int)now.DayOfWeek);
+        var lastWeekStart = thisWeekStart.AddDays(-7);
+
+        var feedbacks = await _db.FeedbackSubmissions
+            .Where(f => hospitalId == 0 || f.HospitalId == hospitalId)
+            .Where(f => f.SubmittedAt >= lastWeekStart)
+            .Include(f => f.Department)
+            .Include(f => f.Answers).ThenInclude(a => a.Question)
+            .ToListAsync();
+
+        var thisWeek = feedbacks.Where(f => f.SubmittedAt >= thisWeekStart).ToList();
+        var lastWeek = feedbacks.Where(f => f.SubmittedAt >= lastWeekStart && f.SubmittedAt < thisWeekStart).ToList();
+
+        var trends = new List<object>();
+
+        // Group by department
+        var departments = feedbacks.Where(f => f.Department != null).Select(f => f.Department!).DistinctBy(d => d.Id).ToList();
+
+        foreach (var dept in departments)
+        {
+            var thisWeekDept = thisWeek.Where(f => f.DepartmentId == dept.Id).SelectMany(f => f.Answers).ToList();
+            var lastWeekDept = lastWeek.Where(f => f.DepartmentId == dept.Id).SelectMany(f => f.Answers).ToList();
+
+            if (thisWeekDept.Count == 0 && lastWeekDept.Count == 0) continue;
+
+            // Per category
+            var categories = thisWeekDept.Concat(lastWeekDept)
+                .Where(a => a.RatingValue.HasValue)
+                .Select(a => a.Question.Category)
+                .Distinct();
+
+            foreach (var cat in categories)
+            {
+                var thisAvg = thisWeekDept.Where(a => a.Question.Category == cat && a.RatingValue.HasValue)
+                    .Select(a => (double)a.RatingValue!.Value).DefaultIfEmpty(0).Average();
+                var lastAvg = lastWeekDept.Where(a => a.Question.Category == cat && a.RatingValue.HasValue)
+                    .Select(a => (double)a.RatingValue!.Value).DefaultIfEmpty(0).Average();
+
+                if (lastAvg == 0 && thisAvg == 0) continue;
+
+                var changePercent = lastAvg > 0 ? ((thisAvg - lastAvg) / lastAvg) * 100 : (thisAvg > 0 ? 100 : 0);
+
+                // Only report significant changes (>10%)
+                if (Math.Abs(changePercent) >= 10)
+                {
+                    trends.Add(new
+                    {
+                        DepartmentId = dept.Id,
+                        DepartmentName = dept.Name,
+                        Category = cat.ToString(),
+                        ThisWeekScore = Math.Round(thisAvg, 2),
+                        LastWeekScore = Math.Round(lastAvg, 2),
+                        ChangePercent = Math.Round(changePercent, 1),
+                        Direction = changePercent > 0 ? "up" : "down",
+                        Severity = Math.Abs(changePercent) >= 30 ? "high" : Math.Abs(changePercent) >= 20 ? "medium" : "low",
+                    });
+                }
+            }
+        }
+
+        return Ok(new
+        {
+            period = new { thisWeekStart, lastWeekStart, now },
+            thisWeekFeedbackCount = thisWeek.Count,
+            lastWeekFeedbackCount = lastWeek.Count,
+            trends = trends.OrderByDescending(t => Math.Abs(((dynamic)t).ChangePercent)).ToList(),
+        });
+    }
+
+    /// <summary>
+    /// Accountability metrics: response times, recurrence, resolution rates.
+    /// </summary>
+    [HttpGet("accountability/{hospitalId}")]
+    public async Task<ActionResult> GetAccountabilityMetrics(int hospitalId)
+    {
+        var alerts = await _db.AbuseAlerts
+            .Where(a => hospitalId == 0 || a.HospitalId == hospitalId)
+            .Include(a => a.FeedbackSubmission).ThenInclude(f => f.Department)
+            .ToListAsync();
+
+        var totalAlerts = alerts.Count;
+        var resolvedAlerts = alerts.Count(a => a.Status == AlertStatus.Resolved || a.Status == AlertStatus.Closed);
+        var openAlerts = alerts.Count(a => a.Status == AlertStatus.Open);
+        var acknowledgedAlerts = alerts.Count(a => a.AcknowledgedAt.HasValue);
+
+        // Average response time (creation → acknowledgment)
+        var responseTimesHours = alerts
+            .Where(a => a.AcknowledgedAt.HasValue)
+            .Select(a => (a.AcknowledgedAt!.Value - a.CreatedAt).TotalHours)
+            .ToList();
+        var avgResponseTimeHours = responseTimesHours.Count > 0 ? responseTimesHours.Average() : 0;
+
+        // Average resolution time (creation → resolution)
+        var resolutionTimesHours = alerts
+            .Where(a => a.ResolvedAt.HasValue)
+            .Select(a => (a.ResolvedAt!.Value - a.CreatedAt).TotalHours)
+            .ToList();
+        var avgResolutionTimeHours = resolutionTimesHours.Count > 0 ? resolutionTimesHours.Average() : 0;
+
+        // Resolution rate
+        var resolutionRate = totalAlerts > 0 ? (double)resolvedAlerts / totalAlerts * 100 : 0;
+
+        // Recurrence: same department + same alert type within 30 days
+        var recurrentIssues = alerts
+            .Where(a => a.DepartmentId.HasValue)
+            .GroupBy(a => new { a.DepartmentId, a.AlertType })
+            .Where(g => g.Count() > 1)
+            .Select(g =>
+            {
+                var sorted = g.OrderBy(a => a.CreatedAt).ToList();
+                var recurring = sorted.Zip(sorted.Skip(1), (prev, curr) => new { prev, curr })
+                    .Any(pair => (pair.curr.CreatedAt - pair.prev.CreatedAt).TotalDays <= 30);
+                return new { g.Key.DepartmentId, g.Key.AlertType, IsRecurrent = recurring, Count = g.Count() };
+            })
+            .Where(x => x.IsRecurrent)
+            .ToList();
+
+        // Overdue alerts (open for more than 48h without acknowledgment)
+        var overdueAlerts = alerts
+            .Where(a => a.Status == AlertStatus.Open && !a.AcknowledgedAt.HasValue
+                && (DateTime.UtcNow - a.CreatedAt).TotalHours > 48)
+            .Count();
+
+        // Alerts per department
+        var alertsByDepartment = alerts
+            .Where(a => a.FeedbackSubmission.Department != null)
+            .GroupBy(a => a.FeedbackSubmission.Department!.Name)
+            .Select(g => new
+            {
+                Department = g.Key,
+                Total = g.Count(),
+                Open = g.Count(a => a.Status == AlertStatus.Open),
+                Resolved = g.Count(a => a.Status == AlertStatus.Resolved || a.Status == AlertStatus.Closed),
+                AvgResponseHours = g.Where(a => a.AcknowledgedAt.HasValue)
+                    .Select(a => (a.AcknowledgedAt!.Value - a.CreatedAt).TotalHours)
+                    .DefaultIfEmpty(0).Average(),
+            })
+            .OrderByDescending(x => x.Total)
+            .ToList();
+
+        return Ok(new
+        {
+            totalAlerts,
+            openAlerts,
+            resolvedAlerts,
+            acknowledgedAlerts,
+            overdueAlerts,
+            resolutionRate = Math.Round(resolutionRate, 1),
+            avgResponseTimeHours = Math.Round(avgResponseTimeHours, 1),
+            avgResolutionTimeHours = Math.Round(avgResolutionTimeHours, 1),
+            recurrentIssues = recurrentIssues.Select(r => new
+            {
+                DepartmentId = r.DepartmentId,
+                AlertType = r.AlertType.ToString(),
+                OccurrenceCount = r.Count,
+            }).ToList(),
+            alertsByDepartment,
+        });
     }
 }

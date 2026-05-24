@@ -28,8 +28,9 @@ Write-Host "  Backend:  http://localhost:5000" -ForegroundColor White
 Write-Host "  Swagger:  http://localhost:5000/swagger" -ForegroundColor White
 Write-Host ""
 Write-Host "  Demo Credentials:" -ForegroundColor White
-Write-Host "    Admin:   admin@smarthospital.ro / Admin123!" -ForegroundColor Gray
-Write-Host "    Manager: manager.municipal@smarthospital.ro / Manager123!" -ForegroundColor Gray
+Write-Host "    Admin:     admin@smarthospital.ro / Admin123!" -ForegroundColor Gray
+Write-Host "    Urgenta:   manager.urgenta@smarthospital.ro / Manager123!  (spital bun)" -ForegroundColor Gray
+Write-Host "    Recuperare: manager.recuperare@smarthospital.ro / Manager123!  (spital slab)" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Press Ctrl+C to stop..." -ForegroundColor DarkGray
 

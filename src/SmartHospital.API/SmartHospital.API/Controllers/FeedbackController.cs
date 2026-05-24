@@ -111,12 +111,25 @@ public class FeedbackController : ControllerBase
             // Check for corruption alert
             if (question.IsCorruptionAlert && answerDto.SelectedOption?.ToLower() == "da")
             {
+                // Determine alert type based on question text
+                var alertType = AlertType.MoneyRequested;
+                var qText = question.TextRO.ToLower();
+                if (qText.Contains("cadouri") || qText.Contains("atentii"))
+                    alertType = AlertType.GiftsRequested;
+                else if (qText.Contains("bani"))
+                    alertType = AlertType.MoneyRequested;
+
+                var trackingCode = $"SH-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+
                 var alert = new AbuseAlert
                 {
                     FeedbackSubmission = submission,
                     HospitalId = dto.HospitalId,
                     DepartmentId = dto.DepartmentId,
-                    AlertType = AlertType.MoneyRequested,
+                    AlertType = alertType,
+                    Status = AlertStatus.Open,
+                    EscalationLevel = EscalationLevel.Level1_Department,
+                    TrackingCode = trackingCode,
                     CreatedAt = DateTime.UtcNow,
                 };
 
@@ -128,7 +141,8 @@ public class FeedbackController : ControllerBase
                     {
                         HospitalId = dto.HospitalId,
                         DepartmentId = dto.DepartmentId,
-                        AlertType = AlertType.MoneyRequested.ToString(),
+                        AlertType = alertType.ToString(),
+                        TrackingCode = trackingCode,
                         CreatedAt = DateTime.UtcNow,
                     });
             }

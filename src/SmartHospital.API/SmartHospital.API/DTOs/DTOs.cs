@@ -95,6 +95,8 @@ public record AbuseAlertDto(
 
 public record AlertReviewDto(string? Notes);
 
+public record AlertStatusUpdateDto(string Status, string? Notes, string? AssignedTo);
+
 // === Auth DTOs ===
 public record LoginDto(string Email, string Password);
 

@@ -101,7 +101,26 @@ public enum AlertType
 {
     MoneyRequested,
     GiftsRequested,
+    InappropriateBehavior,
+    Negligence,
     Other
+}
+
+public enum AlertStatus
+{
+    Open,
+    Acknowledged,
+    Investigating,
+    ActionTaken,
+    Resolved,
+    Closed
+}
+
+public enum EscalationLevel
+{
+    Level1_Department,
+    Level2_Management,
+    Level3_External
 }
 
 public enum ManagerRole

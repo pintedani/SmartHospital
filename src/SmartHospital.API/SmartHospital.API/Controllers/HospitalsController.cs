@@ -227,7 +227,9 @@ public class HospitalsController : ControllerBase
     private async Task<double?> GetAverageRating(int hospitalId)
     {
         var ratings = await _db.FeedbackAnswers
-            .Where(a => a.FeedbackSubmission.HospitalId == hospitalId && a.RatingValue.HasValue)
+            .Where(a => a.FeedbackSubmission.HospitalId == hospitalId
+                && a.RatingValue.HasValue
+                && a.Question.Type == QuestionType.Smiley)
             .Select(a => (double)a.RatingValue!.Value)
             .ToListAsync();
 
@@ -237,7 +239,9 @@ public class HospitalsController : ControllerBase
     private async Task<double?> GetDepartmentAverageRating(int departmentId)
     {
         var ratings = await _db.FeedbackAnswers
-            .Where(a => a.FeedbackSubmission.DepartmentId == departmentId && a.RatingValue.HasValue)
+            .Where(a => a.FeedbackSubmission.DepartmentId == departmentId
+                && a.RatingValue.HasValue
+                && a.Question.Type == QuestionType.Smiley)
             .Select(a => (double)a.RatingValue!.Value)
             .ToListAsync();
 

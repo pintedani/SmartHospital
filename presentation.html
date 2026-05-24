@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHospital - Digital Patient Feedback Platform</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/white.min.css">
+    <style>
+        :root {
+            --primary: #1976d2;
+            --secondary: #388e3c;
+            --accent: #f57c00;
+            --dark: #263238;
+        }
+        .reveal h1, .reveal h2, .reveal h3 { color: var(--dark); font-family: 'Segoe UI', sans-serif; }
+        .reveal h1 { font-size: 2.2em; }
+        .reveal h2 { font-size: 1.6em; border-bottom: 3px solid var(--primary); padding-bottom: 10px; display: inline-block; }
+        .reveal p, .reveal li { font-family: 'Segoe UI', sans-serif; font-size: 0.75em; line-height: 1.5; }
+        .reveal .subtitle { color: var(--primary); font-size: 1.1em; margin-top: -10px; }
+        .reveal .highlight { color: var(--primary); font-weight: bold; }
+        .reveal .warn { color: #d32f2f; font-weight: bold; }
+        .reveal .success { color: var(--secondary); font-weight: bold; }
+        .reveal ul { list-style: none; padding-left: 0; }
+        .reveal ul li::before { content: "▸ "; color: var(--primary); font-weight: bold; }
+        .reveal .two-col { display: flex; gap: 40px; text-align: left; }
+        .reveal .two-col > div { flex: 1; }
+        .reveal .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; margin-top: 20px; }
+        .reveal .tech-card { background: #f5f5f5; border-radius: 12px; padding: 20px; border-left: 4px solid var(--primary); }
+        .reveal .tech-card h4 { margin: 0 0 8px 0; color: var(--primary); font-size: 0.8em; }
+        .reveal .tech-card p { margin: 0; font-size: 0.65em; color: #555; }
+        .reveal .problem-card { background: #fff3e0; border-radius: 12px; padding: 15px 20px; margin: 10px 0; border-left: 4px solid var(--accent); text-align: left; }
+        .reveal .solution-card { background: #e8f5e9; border-radius: 12px; padding: 15px 20px; margin: 10px 0; border-left: 4px solid var(--secondary); text-align: left; }
+        .reveal .channel-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .reveal .channel-card { background: #e3f2fd; border-radius: 12px; padding: 20px 15px; text-align: center; }
+        .reveal .channel-card .icon { font-size: 2em; margin-bottom: 8px; }
+        .reveal .channel-card h4 { margin: 0; font-size: 0.7em; color: var(--dark); }
+        .reveal .channel-card p { margin: 5px 0 0; font-size: 0.55em; color: #666; }
+        .reveal .flow-arrow { font-size: 1.5em; color: var(--primary); margin: 0 10px; }
+        .reveal .flow { display: flex; align-items: center; justify-content: center; margin: 30px 0; flex-wrap: wrap; gap: 10px; }
+        .reveal .flow-step { background: #e3f2fd; border-radius: 10px; padding: 12px 18px; font-size: 0.65em; font-weight: 500; }
+        .reveal .flow-step.ai { background: #ede7f6; border: 2px solid #7c4dff; }
+        .slide-number { display: none; }
+        .reveal .title-badge { background: var(--primary); color: white; padding: 8px 24px; border-radius: 30px; font-size: 0.6em; display: inline-block; margin-bottom: 15px; }
+        .reveal .quote { font-style: italic; border-left: 4px solid var(--primary); padding-left: 20px; color: #555; font-size: 0.7em; margin: 20px auto; max-width: 80%; text-align: left; }
+        .reveal .next-step { background: linear-gradient(135deg, #e3f2fd, #e8f5e9); border-radius: 12px; padding: 25px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- SLIDE 1: Title -->
+            <section>
+                <div class="title-badge">Cluj County Council – Hackathon 2025</div>
+                <h1>SmartHospital</h1>
+                <p class="subtitle">Digital Patient Feedback Platform for Cluj County</p>
+                <br>
+                <p style="font-size: 0.6em; color: #777;">Digitalization & Standardization of Patient Feedback</p>
+            </section>
+
+            <!-- SLIDE 2: The Problem -->
+            <section>
+                <h2>The Problem</h2>
+                <div class="problem-card">
+                    <strong>📋 Paper-based questionnaires</strong> still used across hospitals — end up in plastic collection boxes, rarely digitized
+                </div>
+                <div class="problem-card">
+                    <strong>🔀 Fragmented systems</strong> — each hospital uses its own method: QR posters, paper forms, or nothing at all
+                </div>
+                <div class="problem-card">
+                    <strong>👴 Accessibility gap</strong> — elderly patients and children cannot easily provide feedback digitally
+                </div>
+                <div class="problem-card">
+                    <strong>📊 No centralized analytics</strong> — hospital management lacks real-time insight into patient satisfaction trends
+                </div>
+            </section>
+
+            <!-- SLIDE 3: The Challenge -->
+            <section>
+                <h2>The Challenge</h2>
+                <p class="quote">
+                    "Create a unified, digital, accessible, and county-wide standardized platform that replaces the bureaucracy of physical forms and centralizes patient feedback in a completely anonymous, transparent, and user-friendly way for all age groups."
+                </p>
+                <br>
+                <div style="text-align: left; max-width: 80%; margin: 0 auto;">
+                    <p><span class="highlight">1.</span> Inclusive & Omnichannel Interface</p>
+                    <p><span class="highlight">2.</span> Questionnaire Standardization (gamified, quick ratings)</p>
+                    <p><span class="highlight">3.</span> Analytics Dashboard for Hospital Management</p>
+                    <p><span class="highlight">4.</span> Abuse Reporting & Anti-Corruption Alerts</p>
+                </div>
+            </section>
+
+            <!-- SLIDE 4: Our Solution Overview -->
+            <section>
+                <h2>Our Solution</h2>
+                <div class="solution-card">
+                    <strong>✅ Unified platform</strong> — single system for all 10 hospitals in Cluj County
+                </div>
+                <div class="solution-card">
+                    <strong>✅ Omnichannel feedback</strong> — Standard digital form, Audio-assisted input, and <span class="highlight">AI-powered document scanning</span>
+                </div>
+                <div class="solution-card">
+                    <strong>✅ AI-powered analytics</strong> — automatic interpretation, trend detection, and severity classification
+                </div>
+                <div class="solution-card">
+                    <strong>✅ Real-time alerts</strong> — immediate notification on corruption or abuse reports
+                </div>
+            </section>
+
+            <!-- SLIDE 5: Omnichannel Input -->
+            <section>
+                <h2>Omnichannel Feedback Input</h2>
+                <p style="font-size: 0.7em; color: #555;">Three ways to submit feedback — accessible for all ages</p>
+                <div class="channel-grid">
+                    <div class="channel-card">
+                        <div class="icon">✏️</div>
+                        <h4>Standard Digital</h4>
+                        <p>QR code at discharge → gamified wizard with smileys & quick ratings</p>
+                    </div>
+                    <div class="channel-card">
+                        <div class="icon">🎙️</div>
+                        <h4>Audio + Visual</h4>
+                        <p>Assisted mode for elderly — larger UI, voice guidance, caregiver support</p>
+                    </div>
+                    <div class="channel-card" style="background: #ede7f6; border: 2px solid #7c4dff;">
+                        <div class="icon">📄✨</div>
+                        <h4>AI Document Scan</h4>
+                        <p>Scan paper forms → OCR + AI extracts & maps answers automatically</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 6: Document Scanning Deep Dive -->
+            <section>
+                <h2>AI-Powered Document Scanning</h2>
+                <p style="font-size: 0.7em; color: #555;">Bridging the gap between paper and digital</p>
+                <div class="flow">
+                    <div class="flow-step">📄 Paper Form</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-step">📷 Camera Capture</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-step ai">🔍 OCR (Tesseract)</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-step ai">🤖 LLM Interpretation</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-step">✅ Structured Feedback</div>
+                </div>
+                <div style="text-align: left; max-width: 80%; margin: 20px auto 0;">
+                    <p><span class="highlight">Why this matters:</span></p>
+                    <ul>
+                        <li>Hospitals can digitize existing paper feedback instantly</li>
+                        <li>No data entry staff needed — AI handles the mapping</li>
+                        <li>Supports Romanian language documents natively</li>
+                        <li>Handles handwritten and printed forms</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- SLIDE 7: Dashboard & AI Analytics -->
+            <section>
+                <h2>Dashboard & AI Insights</h2>
+                <div class="two-col">
+                    <div>
+                        <h3 style="font-size: 0.9em;">📊 Real-time Analytics</h3>
+                        <ul style="font-size: 0.85em;">
+                            <li>Per-hospital and per-department scores</li>
+                            <li>Trend analysis (week-over-week)</li>
+                            <li>Category breakdown with charts</li>
+                            <li>Comparative star ratings</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 0.9em;">🤖 AI-Powered Reports</h3>
+                        <ul style="font-size: 0.85em;">
+                            <li>Automatic issue classification & severity</li>
+                            <li>Actionable recommendations with priority</li>
+                            <li>Accountability flags & escalation levels</li>
+                            <li>Department-specific insights & trends</li>
+                        </ul>
+                    </div>
+                </div>
+                <br>
+                <div class="solution-card">
+                    <strong>🚨 Anti-corruption module:</strong> Immediate alerts when patients report being asked for money or gifts — with case management workflow
+                </div>
+            </section>
+
+            <!-- SLIDE 8: Technology Stack -->
+            <section>
+                <h2>Technology Stack</h2>
+                <div class="tech-grid">
+                    <div class="tech-card">
+                        <h4>Frontend</h4>
+                        <p>React + TypeScript, Material UI, Vite, i18n (RO/EN)</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Backend</h4>
+                        <p>.NET 8 Web API, Entity Framework Core, SQLite, SignalR (real-time alerts)</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>AI / ML</h4>
+                        <p>LLM integration (Anthropic-compatible), Tesseract OCR for document scanning</p>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Infrastructure</h4>
+                        <p>Identity authentication, role-based access, anonymous feedback with tracking codes</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SLIDE 9: Next Steps - Appointments -->
+            <section>
+                <h2>Next Steps</h2>
+                <div class="next-step">
+                    <p style="font-size: 0.75em;">
+                        Following a conversation with <strong>Mr. Claudiu Salanță</strong> (Cluj County Council), 
+                        a new requirement was identified:
+                    </p>
+                    <h3 style="font-size: 0.9em; color: var(--primary); margin: 15px 0 10px;">🗓️ Appointment Scheduling Module</h3>
+                    <ul style="font-size: 0.75em;">
+                        <li>AI-powered appointment suggestions based on availability</li>
+                        <li>Integration with hospital department slot management</li>
+                        <li>Already prototyped in our current system</li>
+                    </ul>
+                </div>
+                <br>
+                <div class="problem-card" style="background: #fce4ec; border-color: #d32f2f;">
+                    <strong>Current challenge:</strong> Each hospital has its own feedback system → fragmented data, no county-level visibility. Our platform solves this with a single unified system.
+                </div>
+            </section>
+
+            <!-- SLIDE 10: Demo / Thank You -->
+            <section>
+                <h1>Live Demo</h1>
+                <br>
+                <div style="font-size: 0.7em; color: #555;">
+                    <p>🏥 <strong>Good hospital:</strong> Spitalul Judetean de Urgenta → ⭐⭐⭐⭐</p>
+                    <p>🏚️ <strong>Problematic hospital:</strong> Spitalul de Recuperare → ⭐</p>
+                </div>
+                <br>
+                <p style="font-size: 0.65em; color: #999;">
+                    localhost:5173 | admin@smarthospital.ro / Admin123!
+                </p>
+                <br><br>
+                <h3 style="color: var(--primary);">Thank you!</h3>
+                <p style="font-size: 0.7em;">Questions?</p>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: 'c/t',
+            transition: 'slide',
+            transitionSpeed: 'default',
+            controls: true,
+            progress: true,
+            center: true,
+            width: 1200,
+            height: 700,
+        });
+    </script>
+</body>
+</html>
