@@ -82,17 +82,22 @@ public class AnthropicAiService : IAiService
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _logger.LogInformation("AI request: model={Model}, promptHash={Hash}",
-            model, sanitizedMessage.GetHashCode());
+        _logger.LogInformation("[AI] >>> REQUEST to {BaseUrl}v1/messages", _httpClient.BaseAddress);
+        _logger.LogInformation("[AI] >>> Model: {Model}", model);
+        _logger.LogInformation("[AI] >>> System prompt: {Prompt}", systemPrompt[..Math.Min(150, systemPrompt.Length)] + "...");
+        _logger.LogInformation("[AI] >>> User message: {Message}", sanitizedMessage);
 
         try
         {
             var response = await _httpClient.PostAsync("v1/messages", content, ct);
             var responseBody = await response.Content.ReadAsStringAsync(ct);
 
+            _logger.LogInformation("[AI] <<< Status: {Status}", response.StatusCode);
+            _logger.LogInformation("[AI] <<< Response: {Body}", responseBody[..Math.Min(500, responseBody.Length)]);
+
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("AI API error: {Status} - {Body}", response.StatusCode, responseBody);
+                _logger.LogWarning("[AI] <<< ERROR: {Status} - {Body}", response.StatusCode, responseBody);
                 throw new HttpRequestException($"AI API returned {response.StatusCode}");
             }
 
@@ -100,12 +105,24 @@ public class AnthropicAiService : IAiService
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
-            // Try Anthropic format: { content: [{ text: "..." }] }
+            // Try Anthropic format: { content: [{ type: "text", text: "..." }] }
             if (root.TryGetProperty("content", out var contentArr) && contentArr.ValueKind == JsonValueKind.Array)
             {
+                // Find the text-type block (skip thinking blocks)
+                foreach (var block in contentArr.EnumerateArray())
+                {
+                    var blockType = block.TryGetProperty("type", out var tp) ? tp.GetString() : null;
+                    if (blockType == "text" && block.TryGetProperty("text", out var textProp))
+                    {
+                        var result = textProp.GetString() ?? "";
+                        _logger.LogInformation("[AI] <<< Parsed text: {Text}", result[..Math.Min(300, result.Length)]);
+                        return result;
+                    }
+                }
+                // Fallback: try first block with text property
                 var firstBlock = contentArr.EnumerateArray().FirstOrDefault();
-                if (firstBlock.TryGetProperty("text", out var textProp))
-                    return textProp.GetString() ?? "";
+                if (firstBlock.TryGetProperty("text", out var fallbackText))
+                    return fallbackText.GetString() ?? "";
             }
 
             // Try OpenAI format: { choices: [{ message: { content: "..." } }] }
@@ -116,12 +133,17 @@ public class AnthropicAiService : IAiService
                     return c.GetString() ?? "";
             }
 
-            _logger.LogWarning("Unexpected AI response format: {Body}", responseBody);
+            _logger.LogWarning("[AI] Unexpected response format: {Body}", responseBody);
             return responseBody;
         }
         catch (TaskCanceledException)
         {
-            _logger.LogWarning("AI request timed out");
+            _logger.LogWarning("[AI] <<< TIMEOUT after 30s");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[AI] <<< EXCEPTION: {Message}", ex.Message);
             throw;
         }
     }

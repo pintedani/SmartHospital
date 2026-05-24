@@ -13,11 +13,13 @@ public class AiSettingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IAiService _aiService;
+    private readonly IConfiguration _config;
 
-    public AiSettingsController(AppDbContext db, IAiService aiService)
+    public AiSettingsController(AppDbContext db, IAiService aiService, IConfiguration config)
     {
         _db = db;
         _aiService = aiService;
+        _config = config;
     }
 
     /// <summary>
@@ -43,11 +45,19 @@ public class AiSettingsController : ControllerBase
 
         var dict = settings.ToDictionary(s => s.Key, s => s.Value);
 
+        // Check API key from DB first, then fall back to IConfiguration
+        var apiKeyFromDb = dict.GetValueOrDefault("AI:ApiKey", "");
+        var apiKeyFromConfig = _config["AI:ApiKey"] ?? "";
+        var hasKey = !string.IsNullOrEmpty(apiKeyFromDb) || !string.IsNullOrEmpty(apiKeyFromConfig);
+
+        var modelFromDb = dict.GetValueOrDefault("AI:Model", "");
+        var modelFromConfig = _config["AI:Model"] ?? "";
+
         return Ok(new
         {
             enabled = dict.GetValueOrDefault("AI:Enabled", "false"),
-            model = dict.GetValueOrDefault("AI:Model", ""),
-            hasApiKey = !string.IsNullOrEmpty(dict.GetValueOrDefault("AI:ApiKey", "")),
+            model = !string.IsNullOrEmpty(modelFromDb) ? modelFromDb : modelFromConfig,
+            hasApiKey = hasKey,
             updatedAt = settings.MaxBy(s => s.UpdatedAt)?.UpdatedAt
         });
     }

@@ -19,7 +19,7 @@ interface Question {
 interface Dept { id: number; name: string; nameEN: string; specialty: string; }
 
 export default function FeedbackFormPage() {
-  const { hospitalId } = useParams<{ hospitalId: string }>();
+  const { hospitalId } = useParams<{ hospitalId: string }>();   
   const [searchParams] = useSearchParams();
   const deptParam = searchParams.get('dept');
   const { t, i18n } = useTranslation();
