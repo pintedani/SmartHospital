@@ -3,24 +3,29 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Button, IconButton, Box, Drawer,
   List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  useMediaQuery, useTheme, Menu, MenuItem,
+  useMediaQuery, useTheme, Menu, MenuItem, Avatar, Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon, LocalHospital, Map, Dashboard,
   Login, Logout, AdminPanelSettings, Language, MedicalInformation,
-  EventNote, Search as SearchIcon,
+  EventNote, Search as SearchIcon, RateReview,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation();
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [langAnchor, setLangAnchor] = useState<null | HTMLElement>(null);
+  const [userAnchor, setUserAnchor] = useState<null | HTMLElement>(null);
   const location = useLocation();
+
+  const isAdmin = user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
+  const isStaff = isAdmin || isManager;
 
   const navItems = [
     { label: t('nav.hospitals'), path: '/', icon: <LocalHospital /> },
@@ -29,6 +34,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: t('nav.map'), path: '/map', icon: <Map /> },
     ...(isAuthenticated ? [
       { label: t('nav.reservations'), path: '/reservations', icon: <EventNote /> },
+      { label: i18n.language === 'ro' ? 'Review-urile mele' : 'My Reviews', path: '/my-reviews', icon: <RateReview /> },
+    ] : []),
+    ...(isStaff ? [
       { label: t('nav.dashboard'), path: '/dashboard', icon: <Dashboard /> },
       { label: t('nav.admin'), path: '/admin', icon: <AdminPanelSettings /> },
     ] : []),
@@ -48,14 +56,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <MenuIcon />
             </IconButton>
           )}
-          <LocalHospital sx={{ color: 'primary.main', mr: 1 }} />
-          <Typography variant="h6" component={Link} to="/"
-            sx={{ flexGrow: 0, textDecoration: 'none', color: 'primary.main', fontWeight: 700, mr: 4 }}>
-            {t('app.title')}
-          </Typography>
+          <Box component={Link} to="/" sx={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+            <img src="/SmartHospital.png" alt="SmartHospital" style={{ height: 48, marginRight: 10 }} />
+            <Typography variant="h6"
+              sx={{ color: 'primary.main', fontWeight: 700 }}>
+              {t('app.title')}
+            </Typography>
+          </Box>
 
           {!isMobile && (
-            <Box sx={{ display: 'flex', gap: 1, flexGrow: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, flexGrow: 1, justifyContent: 'center' }}>
               {navItems.map(item => (
                 <Button key={item.path} component={Link} to={item.path}
                   startIcon={item.icon}
@@ -67,7 +77,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Box>
           )}
 
-          <Box sx={{ flexGrow: 1 }} />
+          {isMobile && <Box sx={{ flexGrow: 1 }} />}
 
           <IconButton onClick={(e) => setLangAnchor(e.currentTarget)} size="small" sx={{ mr: 1 }}>
             <Language />
@@ -78,9 +88,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Menu>
 
           {isAuthenticated ? (
-            <Button startIcon={<Logout />} onClick={logout} size="small">
-              {t('nav.logout')}
-            </Button>
+            <>
+              <IconButton onClick={(e) => setUserAnchor(e.currentTarget)} size="small">
+                <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: 16 }}>
+                  {user?.fullName?.charAt(0).toUpperCase() || '?'}
+                </Avatar>
+              </IconButton>
+              <Menu
+                anchorEl={userAnchor}
+                open={!!userAnchor}
+                onClose={() => setUserAnchor(null)}
+                slotProps={{ paper: { sx: { minWidth: 220, mt: 1 } } }}
+              >
+                <Box sx={{ px: 2, py: 1.5 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{user?.fullName}</Typography>
+                  <Typography variant="body2" color="text.secondary">{user?.email}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user?.role === 'Admin' ? '🛡️ Administrator' : user?.role === 'Manager' ? '🏥 Manager' : '👤 Pacient'}
+                  </Typography>
+                </Box>
+                <Divider />
+                <MenuItem onClick={() => { setUserAnchor(null); logout(); }}>
+                  <ListItemIcon><Logout fontSize="small" /></ListItemIcon>
+                  {t('nav.logout')}
+                </MenuItem>
+              </Menu>
+            </>
           ) : (
             <Button startIcon={<Login />} component={Link} to="/login" variant="outlined" size="small">
               {t('nav.login')}

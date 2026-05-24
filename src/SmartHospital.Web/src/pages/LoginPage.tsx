@@ -34,7 +34,7 @@ export default function LoginPage() {
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" gutterBottom sx={{ textAlign: 'center' }}>{t('login.title')}</Typography>
 
-          <Alert severity="info" sx={{ mb: 3 }}>{t('login.demo')}</Alert>
+          <Alert severity="info" sx={{ mb: 3, whiteSpace: 'pre-line' }}>{t('login.demo')}</Alert>
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 

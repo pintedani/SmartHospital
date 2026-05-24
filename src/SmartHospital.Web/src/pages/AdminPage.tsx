@@ -9,6 +9,7 @@ import {
 import { Add, Edit, AutoAwesome } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Hospital {
   id: number; name: string; nameEN: string; address: string; city: string;
@@ -21,6 +22,8 @@ const hospitalTypes = ['General', 'Emergency', 'Specialized', 'Pediatric', 'Onco
 
 export default function AdminPage() {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin';
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -41,7 +44,13 @@ export default function AdminPage() {
   useEffect(() => { loadHospitals(); loadAiSettings(); }, []);
 
   const loadHospitals = () => {
-    api.get('/hospitals').then(res => setHospitals(res.data));
+    api.get('/hospitals').then(res => {
+      if (user?.hospitalId) {
+        setHospitals(res.data.filter((h: Hospital) => h.id === user.hospitalId));
+      } else {
+        setHospitals(res.data);
+      }
+    });
   };
 
   const loadAiSettings = () => {
@@ -104,6 +113,7 @@ export default function AdminPage() {
       <Typography variant="h4" sx={{ mb: 4 }}>{t('admin.title')}</Typography>
 
       {/* AI Settings */}
+      {isAdmin && (
       <Card sx={{ mb: 4, border: '1px solid', borderColor: aiEnabled ? 'primary.light' : 'divider' }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -157,13 +167,16 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Hospitals Table */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h5">{i18n.language === 'ro' ? 'Spitale' : 'Hospitals'}</Typography>
+        {isAdmin && (
         <Button variant="contained" startIcon={<Add />} onClick={openAdd}>
           {t('admin.addHospital')}
         </Button>
+        )}
       </Box>
 
       <TableContainer component={Paper}>

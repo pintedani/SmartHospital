@@ -21,6 +21,9 @@ public class FeedbackSubmission
     [MaxLength(100)]
     public string? AccessToken { get; set; }
 
+    /// <summary>Logged-in user who submitted (null if anonymous)</summary>
+    public string? UserId { get; set; }
+
     public ICollection<FeedbackAnswer> Answers { get; set; } = new List<FeedbackAnswer>();
     public ICollection<AbuseAlert> AbuseAlerts { get; set; } = new List<AbuseAlert>();
 }

@@ -114,12 +114,12 @@
     "subtitle": "All hospitals in Cluj-Napoca"
   },
   "login": {
-    "title": "Manager Login",
+    "title": "Login",
     "email": "Email",
     "password": "Password",
     "submit": "Sign In",
     "error": "Invalid email or password",
-    "demo": "Demo credentials: admin@smarthospital.ro / Admin123!"
+    "demo": "Demo accounts:\n• Admin: admin@smarthospital.ro / Admin123!\n• Manager: manager.urgenta@smarthospital.ro / Manager123!\n• Patient: pacient@smarthospital.ro / Pacient123!"
   },
   "admin": {
     "title": "Hospital Management",

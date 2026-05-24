@@ -94,6 +94,7 @@ export default function DashboardPage() {
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4">{t('dashboard.title')}</Typography>
+        {!user?.hospitalId && (
         <FormControl size="small" sx={{ minWidth: 300 }}>
           <InputLabel>{t('dashboard.selectHospital')}</InputLabel>
           <Select value={selectedHospital ?? ''} label={t('dashboard.selectHospital')} onChange={e => setSelectedHospital(Number(e.target.value))}>
@@ -103,6 +104,7 @@ export default function DashboardPage() {
             ))}
           </Select>
         </FormControl>
+        )}
       </Box>
 
       {overview && (

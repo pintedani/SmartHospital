@@ -114,12 +114,12 @@
     "subtitle": "Toate spitalele din Cluj-Napoca"
   },
   "login": {
-    "title": "Autentificare Manager",
+    "title": "Autentificare",
     "email": "Email",
     "password": "Parola",
     "submit": "Conecteaza-te",
     "error": "Email sau parola invalide",
-    "demo": "Date demo: admin@smarthospital.ro / Admin123!"
+    "demo": "Conturi demo:\n• Admin: admin@smarthospital.ro / Admin123!\n• Manager: manager.urgenta@smarthospital.ro / Manager123!\n• Pacient: pacient@smarthospital.ro / Pacient123!"
   },
   "admin": {
     "title": "Administrare Spitale",

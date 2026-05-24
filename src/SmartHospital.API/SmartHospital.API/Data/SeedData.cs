@@ -773,7 +773,7 @@ public static class SeedData
                         case QuestionType.YesNo:
                             if (q.IsCorruptionAlert)
                             {
-                                bool corrupt = rng.Next(100) < 5;
+                                bool corrupt = rng.Next(100) < 15;
                                 answer.SelectedOption = corrupt ? "Da" : "Nu";
                                 answer.RatingValue = corrupt ? 0 : 1;
                             }
@@ -915,6 +915,17 @@ public static class SeedData
             };
             await userManager.CreateAsync(manager2, "Manager123!");
         }
+
+        // Patient user (normal citizen)
+        var patient = new HospitalManager
+        {
+            UserName = "pacient@smarthospital.ro",
+            Email = "pacient@smarthospital.ro",
+            FullName = "Ion Popescu",
+            Role = ManagerRole.Patient,
+            EmailConfirmed = true,
+        };
+        await userManager.CreateAsync(patient, "Pacient123!");
     }
 
     private static async Task SeedSlotConfigurationsAsync(AppDbContext context)

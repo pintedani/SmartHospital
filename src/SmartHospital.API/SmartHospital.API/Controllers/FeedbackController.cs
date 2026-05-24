@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +85,7 @@ public class FeedbackController : ControllerBase
             FilledBy = dto.FilledBy,
             SubmittedAt = DateTime.UtcNow,
             AccessToken = accessToken,
+            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
         };
 
         foreach (var answerDto in dto.Answers)
@@ -139,5 +142,43 @@ public class FeedbackController : ControllerBase
             : $"{baseUrl}/feedback/{hospitalId}";
 
         return Ok(new { Url = feedbackUrl, HospitalId = hospitalId, DepartmentId = departmentId });
+    }
+
+    [Authorize]
+    [HttpGet("my")]
+    public async Task<ActionResult> GetMyFeedback()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var feedbacks = await _db.FeedbackSubmissions
+            .Include(f => f.Hospital)
+            .Include(f => f.Department)
+            .Include(f => f.Answers)
+                .ThenInclude(a => a.Question)
+            .Where(f => f.UserId == userId)
+            .OrderByDescending(f => f.SubmittedAt)
+            .ToListAsync();
+
+        var result = feedbacks.Select(f => new
+        {
+            f.Id,
+            f.SubmittedAt,
+            hospitalName = f.Hospital.Name,
+            hospitalNameEN = f.Hospital.NameEN,
+            departmentName = f.Department?.Name,
+            departmentNameEN = f.Department?.NameEN,
+            averageRating = f.Answers.Where(a => a.RatingValue.HasValue).Select(a => a.RatingValue!.Value).DefaultIfEmpty(0).Average(),
+            answers = f.Answers.Select(a => new
+            {
+                question = a.Question.TextRO,
+                questionEN = a.Question.TextEN,
+                a.RatingValue,
+                a.TextValue,
+                a.SelectedOption,
+            }),
+        });
+
+        return Ok(result);
     }
 }

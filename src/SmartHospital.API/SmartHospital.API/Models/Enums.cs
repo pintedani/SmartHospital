@@ -108,5 +108,6 @@ public enum ManagerRole
 {
     Admin,
     Manager,
-    Viewer
+    Viewer,
+    Patient
 }

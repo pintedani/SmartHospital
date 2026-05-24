@@ -81,15 +81,34 @@ export default function SymptomCheckerPage() {
     setResult(null);
     try {
       const symptoms = Array.from(selected).map(id => id.replace(/_/g, ' '));
+      const hasFreeText = !!freeText.trim();
+      if (hasFreeText) {
+        console.log('%c[AI] >>> Sending request with free-text to LLM', 'color: #7c3aed; font-weight: bold', {
+          symptoms,
+          freeText: freeText.trim(),
+        });
+      } else {
+        console.log('[Symptom Checker] Rule-based only (no free-text)', { symptoms });
+      }
       const res = await api.post('/recommendations', {
         symptoms,
         latitude: userLocation?.lat,
         longitude: userLocation?.lng,
         freeText: freeText.trim() || undefined,
       });
+      if (res.data.isAiGenerated) {
+        console.log('%c[AI] <<< LLM Response received', 'color: #16a34a; font-weight: bold', {
+          specialties: res.data.matchedSpecialties,
+          urgency: res.data.urgencyMessage,
+          explanation: res.data.aiExplanation,
+          followUpQuestions: res.data.followUpQuestions,
+        });
+      } else {
+        console.log('[Symptom Checker] Rule-based response', { specialties: res.data.matchedSpecialties });
+      }
       setResult(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('[AI] Error:', err);
     }
     setLoading(false);
   };

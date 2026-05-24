@@ -26,20 +26,22 @@ public class AiRecommendationService : IRecommendationService
 
     public async Task<RecommendationResult> GetRecommendationsAsync(RecommendationRequest request)
     {
-        // Check if AI is enabled
-        if (!await _ai.IsEnabledAsync())
+        // Only call AI if there's free-text input AND AI is enabled
+        if (string.IsNullOrWhiteSpace(request.FreeText) || !await _ai.IsEnabledAsync())
         {
-            _logger.LogDebug("AI disabled, falling back to rule-based");
+            _logger.LogInformation("[AI] Skipping LLM call (freeText={HasFreeText}, aiEnabled={AiEnabled})",
+                !string.IsNullOrWhiteSpace(request.FreeText), await _ai.IsEnabledAsync());
             return await _ruleBasedService.GetRecommendationsAsync(request);
         }
 
         try
         {
+            _logger.LogInformation("[AI] >>> Calling LLM for symptom analysis (freeText: \"{FreeText}\")", request.FreeText);
             return await GetAiRecommendationsAsync(request);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "AI recommendation failed, falling back to rule-based");
+            _logger.LogWarning(ex, "[AI] Recommendation failed, falling back to rule-based");
             return await _ruleBasedService.GetRecommendationsAsync(request);
         }
     }
@@ -73,8 +75,14 @@ Respond ONLY in this exact JSON format:
 
         var response = await _ai.CompleteAsync(systemPrompt, userMessage);
 
+        _logger.LogInformation("[AI] <<< LLM response received. Parsing...");
+
         // Parse AI response
         var aiResult = ParseAiResponse(response);
+
+        _logger.LogInformation("[AI] <<< Parsed: Specialties=[{Specialties}], Urgency={Urgency}, Explanation=\"{Explanation}\"",
+            string.Join(", ", aiResult.Specialties), aiResult.Urgency, 
+            aiResult.Explanation.Length > 100 ? aiResult.Explanation[..100] + "..." : aiResult.Explanation);
 
         // Map AI specialties to enum values
         var matchedSpecialties = new List<DepartmentSpecialty>();
