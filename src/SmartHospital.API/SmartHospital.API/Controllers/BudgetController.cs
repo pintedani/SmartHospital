@@ -85,8 +85,11 @@ public class BudgetController : ControllerBase
     public async Task<IActionResult> GetAllHospitalsBudgetSummary()
     {
         var now = DateTime.UtcNow;
-        var allocations = await _context.BudgetAllocations
+        var raw = await _context.BudgetAllocations
             .Where(b => b.Year == now.Year && b.Month == now.Month)
+            .ToListAsync();
+
+        var allocations = raw
             .GroupBy(b => b.HospitalId)
             .Select(g => new
             {
@@ -94,7 +97,7 @@ public class BudgetController : ControllerBase
                 totalBudget = g.Sum(a => a.TotalBudgetRON),
                 totalConsumed = g.Sum(a => a.ConsumedBudgetRON),
             })
-            .ToListAsync();
+            .ToList();
 
         var result = allocations.Select(a =>
         {
