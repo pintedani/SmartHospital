@@ -143,11 +143,12 @@ export default function FeedbackFormPage() {
   useEffect(() => {
     if (hospitalId) {
       api.get(`/feedback/questionnaire/${hospitalId}`).then(res => {
-        setQuestions(res.data.questions);
-        setDepartments(res.data.departments);
+        if (!res.data || typeof res.data !== 'object') return;
+        setQuestions(Array.isArray(res.data.questions) ? res.data.questions : []);
+        setDepartments(Array.isArray(res.data.departments) ? res.data.departments : []);
         setHospitalName(i18n.language === 'en' ? res.data.hospitalNameEN || res.data.hospitalName : res.data.hospitalName);
-        setSteps([0, ...res.data.wizardSteps]);
-      });
+        setSteps([0, ...(Array.isArray(res.data.wizardSteps) ? res.data.wizardSteps : [])]);
+      }).catch(() => {});
     }
   }, [hospitalId]);
 

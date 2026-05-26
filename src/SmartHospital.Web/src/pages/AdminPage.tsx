@@ -45,12 +45,13 @@ export default function AdminPage() {
 
   const loadHospitals = () => {
     api.get('/hospitals').then(res => {
+      const data = Array.isArray(res.data) ? res.data : [];
       if (user?.hospitalId) {
-        setHospitals(res.data.filter((h: Hospital) => h.id === user.hospitalId));
+        setHospitals(data.filter((h: Hospital) => h.id === user.hospitalId));
       } else {
-        setHospitals(res.data);
+        setHospitals(data);
       }
-    });
+    }).catch(() => setHospitals([]));
   };
 
   const loadAiSettings = () => {

@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd src/SmartHospital.Web && npm install && npm run build",
+  "outputDirectory": "src/SmartHospital.Web/dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}

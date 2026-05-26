@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHospital – Pitch Deck</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/black.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --grad1: #667eea;
+            --grad2: #764ba2;
+            --green: #00c9a7;
+            --orange: #ffa62b;
+            --red: #ff6b6b;
+            --bg: #0f0f1a;
+        }
+        .reveal { font-family: 'Inter', sans-serif; }
+        .reveal .slides section { background: var(--bg); }
+        .reveal h1 { font-weight: 800; font-size: 3em; background: linear-gradient(135deg, var(--grad1), var(--grad2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .reveal h2 { font-weight: 700; font-size: 2em; color: #fff; }
+        .reveal h3 { font-weight: 600; font-size: 1.2em; color: rgba(255,255,255,0.7); }
+        .reveal p { color: rgba(255,255,255,0.75); font-weight: 300; font-size: 0.85em; }
+        .reveal .tag { display: inline-block; background: rgba(102,126,234,0.2); border: 1px solid rgba(102,126,234,0.4); color: var(--grad1); padding: 6px 16px; border-radius: 20px; font-size: 0.55em; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px; }
+        .reveal .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 40px; }
+        .reveal .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 40px; }
+        .reveal .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 30px 24px; text-align: center; }
+        .reveal .card .icon { font-size: 2.5em; margin-bottom: 12px; }
+        .reveal .card h4 { color: #fff; font-size: 0.8em; font-weight: 600; margin: 8px 0 4px; }
+        .reveal .card p { font-size: 0.6em; color: rgba(255,255,255,0.5); margin: 0; }
+        .reveal .card-accent { border-color: var(--grad1); background: rgba(102,126,234,0.08); }
+        .reveal .pill { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 30px; padding: 10px 20px; margin: 6px; font-size: 0.6em; color: rgba(255,255,255,0.8); }
+        .reveal .pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .reveal .flow-h { display: flex; align-items: center; justify-content: center; gap: 0; margin: 50px 0; }
+        .reveal .flow-h .step { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px 22px; text-align: center; min-width: 120px; }
+        .reveal .flow-h .step .icon { font-size: 1.6em; }
+        .reveal .flow-h .step p { font-size: 0.55em; margin: 6px 0 0; color: rgba(255,255,255,0.6); }
+        .reveal .flow-h .step.glow { border-color: var(--grad1); box-shadow: 0 0 20px rgba(102,126,234,0.3); }
+        .reveal .flow-h .arrow { color: rgba(255,255,255,0.2); font-size: 1.4em; margin: 0 8px; }
+        .reveal .stat-row { display: flex; justify-content: center; gap: 60px; margin-top: 40px; }
+        .reveal .stat { text-align: center; }
+        .reveal .stat .num { font-size: 2.4em; font-weight: 800; color: var(--green); }
+        .reveal .stat .label { font-size: 0.6em; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .reveal .problem-list { text-align: left; max-width: 700px; margin: 30px auto 0; }
+        .reveal .problem-list .item { display: flex; align-items: center; gap: 16px; margin: 16px 0; padding: 14px 20px; background: rgba(255,107,107,0.06); border-left: 3px solid var(--red); border-radius: 0 10px 10px 0; }
+        .reveal .problem-list .item p { margin: 0; font-size: 0.7em; color: rgba(255,255,255,0.8); }
+        .reveal .cta { margin-top: 50px; padding: 16px 40px; background: linear-gradient(135deg, var(--grad1), var(--grad2)); border-radius: 30px; display: inline-block; color: #fff; font-weight: 600; font-size: 0.7em; }
+        .reveal .divider { width: 60px; height: 3px; background: linear-gradient(90deg, var(--grad1), var(--grad2)); border-radius: 2px; margin: 16px auto; }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- 1. TITLE -->
+            <section>
+                <div class="tag">Cluj County Council · Digital Health</div>
+                <h1>SmartHospital</h1>
+                <h3>Unified Patient Feedback Platform</h3>
+            </section>
+
+            <!-- 2. PROBLEM -->
+            <section>
+                <h2>The Problem</h2>
+                <div class="divider"></div>
+                <div class="problem-list">
+                    <div class="item"><span style="font-size:1.4em">📋</span><p>Paper questionnaires in plastic boxes — never digitized</p></div>
+                    <div class="item"><span style="font-size:1.4em">🔀</span><p>Each hospital uses a different system — no county-level view</p></div>
+                    <div class="item"><span style="font-size:1.4em">👴</span><p>Elderly & children excluded from digital feedback</p></div>
+                    <div class="item"><span style="font-size:1.4em">🚫</span><p>No real-time analytics — issues detected weeks later</p></div>
+                </div>
+            </section>
+
+            <!-- 3. CHALLENGE -->
+            <section>
+                <div class="tag">Official Challenge</div>
+                <h2>What We Need to Build</h2>
+                <div class="divider"></div>
+                <div class="grid-2" style="max-width:800px; margin: 40px auto 0;">
+                    <div class="card"><div class="icon">📱</div><h4>Omnichannel Access</h4><p>QR scan, assisted mode, document scan</p></div>
+                    <div class="card"><div class="icon">😊</div><h4>Smart Questionnaire</h4><p>Gamified, fast, standardized</p></div>
+                    <div class="card"><div class="icon">📊</div><h4>Analytics Dashboard</h4><p>Real-time insights for managers</p></div>
+                    <div class="card"><div class="icon">🚨</div><h4>Abuse Alerts</h4><p>Instant anti-corruption reporting</p></div>
+                </div>
+            </section>
+
+            <!-- 4. SOLUTION - OMNICHANNEL -->
+            <section>
+                <div class="tag">Core Feature</div>
+                <h2>3 Input Channels</h2>
+                <div class="divider"></div>
+                <div class="grid-3">
+                    <div class="card">
+                        <div class="icon">✏️</div>
+                        <h4>Standard</h4>
+                        <p>QR code → wizard with smileys</p>
+                    </div>
+                    <div class="card">
+                        <div class="icon">🎙️</div>
+                        <h4>Assisted</h4>
+                        <p>For elderly — large UI, caregiver mode</p>
+                    </div>
+                    <div class="card card-accent">
+                        <div class="icon">📄✨</div>
+                        <h4>AI Scan</h4>
+                        <p>Paper → OCR → AI → structured data</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. AI SCAN FLOW -->
+            <section>
+                <div class="tag">AI-Powered</div>
+                <h2>Document Scanning</h2>
+                <div class="divider"></div>
+                <div class="flow-h">
+                    <div class="step"><div class="icon">📄</div><p>Paper Form</p></div>
+                    <span class="arrow">→</span>
+                    <div class="step"><div class="icon">📷</div><p>Camera</p></div>
+                    <span class="arrow">→</span>
+                    <div class="step glow"><div class="icon">🔍</div><p>OCR</p></div>
+                    <span class="arrow">→</span>
+                    <div class="step glow"><div class="icon">🤖</div><p>LLM</p></div>
+                    <span class="arrow">→</span>
+                    <div class="step"><div class="icon">✅</div><p>Feedback</p></div>
+                </div>
+                <p style="margin-top:30px; font-size:0.7em; color: rgba(255,255,255,0.5);">Zero manual data entry · Romanian language · Handwritten support</p>
+            </section>
+
+            <!-- 6. DASHBOARD -->
+            <section>
+                <div class="tag">For Hospital Managers</div>
+                <h2>AI Dashboard</h2>
+                <div class="divider"></div>
+                <div class="grid-2" style="max-width: 750px; margin: 30px auto 0; text-align: left;">
+                    <div>
+                        <div class="pill"><span class="dot" style="background:var(--green)"></span> Star ratings per hospital</div>
+                        <div class="pill"><span class="dot" style="background:var(--grad1)"></span> Trend detection</div>
+                        <div class="pill"><span class="dot" style="background:var(--orange)"></span> Category breakdown</div>
+                        <div class="pill"><span class="dot" style="background:var(--red)"></span> Corruption alerts</div>
+                    </div>
+                    <div>
+                        <div class="pill"><span class="dot" style="background:var(--green)"></span> AI severity classification</div>
+                        <div class="pill"><span class="dot" style="background:var(--grad1)"></span> Action recommendations</div>
+                        <div class="pill"><span class="dot" style="background:var(--orange)"></span> Department insights</div>
+                        <div class="pill"><span class="dot" style="background:var(--red)"></span> Case management</div>
+                    </div>
+                </div>
+                <p style="margin-top: 30px; font-size: 0.65em; color: rgba(255,255,255,0.4);">LLM reads all feedback → generates actionable reports automatically</p>
+            </section>
+
+            <!-- 7. TECH STACK -->
+            <section>
+                <div class="tag">Under the Hood</div>
+                <h2>Tech Stack</h2>
+                <div class="divider"></div>
+                <div class="grid-2" style="max-width: 700px; margin: 30px auto 0;">
+                    <div class="card"><h4>Frontend</h4><p>React · TypeScript · Material UI · Vite</p></div>
+                    <div class="card"><h4>Backend</h4><p>.NET 8 · EF Core · SQLite · SignalR</p></div>
+                    <div class="card"><h4>AI</h4><p>LLM (Anthropic) · Tesseract OCR</p></div>
+                    <div class="card"><h4>Auth & Security</h4><p>Identity · Role-based · Anonymous tracking</p></div>
+                </div>
+            </section>
+
+            <!-- 8. NEXT STEPS -->
+            <section>
+                <div class="tag">Roadmap</div>
+                <h2>Next: Appointments</h2>
+                <div class="divider"></div>
+                <p style="font-size: 0.8em; max-width: 600px; margin: 20px auto;">
+                    Requested by <strong style="color:#fff">Mr. Claudiu Salanță</strong> (Cluj County Council)
+                </p>
+                <div class="stat-row">
+                    <div class="stat"><div class="num">10</div><div class="label">Hospitals</div></div>
+                    <div class="stat"><div class="num">1</div><div class="label">Unified Platform</div></div>
+                    <div class="stat"><div class="num">∞</div><div class="label">Scalable</div></div>
+                </div>
+            </section>
+
+            <!-- 9. DEMO -->
+            <section>
+                <h1>Demo</h1>
+                <div class="divider"></div>
+                <div style="margin-top: 30px;">
+                    <div class="pill">⭐⭐⭐⭐ Spitalul Judetean de Urgenta</div>
+                    <div class="pill">⭐ Spitalul de Recuperare</div>
+                </div>
+                <div class="cta">localhost:5173</div>
+            </section>
+
+            <!-- 10. END -->
+            <section>
+                <h1>Thank You</h1>
+                <h3>Questions?</h3>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.min.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: false,
+            transition: 'fade',
+            transitionSpeed: 'fast',
+            controls: false,
+            progress: true,
+            center: true,
+            width: 1280,
+            height: 720,
+        });
+    </script>
+</body>
+</html>

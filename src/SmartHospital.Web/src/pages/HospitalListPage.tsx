@@ -50,7 +50,7 @@ export default function HospitalListPage() {
       const params: Record<string, string> = { sortBy, desc: 'true' };
       if (typeFilter) params.type = typeFilter;
       const res = await api.get('/hospitals', { params });
-      setHospitals(res.data);
+      setHospitals(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
     }
